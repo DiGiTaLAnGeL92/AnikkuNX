@@ -3,6 +3,10 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.5.1
+
+- Corretta la finestra di aggiornamento: le note lunghe ora scorrono e restano nello schermo
+
 ## 0.5.0
 
 - Nuovi episodi della libreria: all'avvio, appena la console è connessa a Internet, l'app controlla gli anime in libreria

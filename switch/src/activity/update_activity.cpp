@@ -58,7 +58,7 @@ std::string shortNotes(std::string notes) {
     }
     notes = clean;
     while (!notes.empty() && (notes.back() == '\n' || notes.back() == ' ')) notes.pop_back();
-    if (notes.size() > 700) notes = notes.substr(0, 700) + "...";
+    if (notes.size() > 1500) notes = notes.substr(0, 1500) + "...";
     return notes;
 }
 
@@ -105,11 +105,40 @@ void runCheck(bool manual, int retriesLeft) {
                 if (manual) brls::Application::notify(tr("La release non contiene il file .nro"));
                 return;
             }
-            std::string text = tr("E' disponibile AnikkuNX v{} (installata: v{}).", rel.version, cur);
+            // contenuto: titolo fisso + note in un riquadro di altezza limitata (scorrevole col dito)
+            auto* content = new brls::Box(brls::Axis::COLUMN);
+            content->setPadding(30, 40, 20, 40);
+            content->setWidth(760);
+            auto* head = new brls::Label();
+            head->setText(tr("E' disponibile AnikkuNX v{} (installata: v{}).", rel.version, cur));
+            head->setFontSize(22);
+            head->setHorizontalAlign(brls::HorizontalAlign::CENTER);
+            head->setMarginBottom(14);
+            head->setWidth(680);
+            content->addView(head);
             std::string notes = shortNotes(rel.notes);
-            if (!notes.empty()) text += "\n\n" + notes;
-            text += "\n\n" + tr("Vuoi aggiornare adesso?");
-            auto* d = new brls::Dialog(text);
+            if (!notes.empty()) {
+                auto* scroll = new brls::ScrollingFrame();
+                scroll->setHeight(260);
+                scroll->setMaxHeight(260);
+                auto* notesBox = new brls::Box(brls::Axis::COLUMN);
+                auto* body = new brls::Label();
+                body->setText(notes);
+                body->setFontSize(17);
+                body->setTextColor(nvgRGB(200, 200, 205));
+                body->setWidth(660);
+                notesBox->addView(body);
+                scroll->setContentView(notesBox);
+                content->addView(scroll);
+            }
+            auto* ask = new brls::Label();
+            ask->setText(tr("Vuoi aggiornare adesso?"));
+            ask->setFontSize(20);
+            ask->setHorizontalAlign(brls::HorizontalAlign::CENTER);
+            ask->setMarginTop(14);
+            ask->setWidth(680);
+            content->addView(ask);
+            auto* d = new brls::Dialog(content);
             d->addButton(tr("Piu' tardi"), [] {});
             if (!manual)
                 d->addButton(tr("Salta questa versione"), [rel] {
