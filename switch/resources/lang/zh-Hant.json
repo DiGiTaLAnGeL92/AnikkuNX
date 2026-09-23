@@ -143,5 +143,7 @@
   "{} episodi nuovi": "{} 集新劇集",
   "Nuovi episodi di {}": "{} 有新劇集",
   "{} anime della libreria hanno nuovi episodi": "資料庫中有 {} 部動畫更新了",
-  "Controlla i nuovi episodi della libreria all'avvio": "啟動時檢查資料庫新劇集"
+  "Controlla i nuovi episodi della libreria all'avvio": "啟動時檢查資料庫新劇集",
+  "Modalita' applet: memoria limitata": "小程式模式：記憶體受限",
+  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "AnikkuNX 以小程式模式（從相簿）啟動：可用記憶體非常有限，影片可能卡住或導致應用程式關閉。\n\n要取得完整記憶體：\n• 按住 R 啟動任意遊戲，然後從自製軟體選單開啟 AnikkuNX；\n• 或用 Sphaira 建立轉發器（在 AnikkuNX 上按 X > Install Forwarder），然後從主頁啟動。"
 }

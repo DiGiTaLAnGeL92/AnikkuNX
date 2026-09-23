@@ -143,5 +143,7 @@
   "{} episodi nuovi": "새 에피소드 {}개",
   "Nuovi episodi di {}": "{}의 새 에피소드",
   "{} anime della libreria hanno nuovi episodi": "라이브러리의 애니 {}편에 새 에피소드가 있습니다",
-  "Controlla i nuovi episodi della libreria all'avvio": "시작할 때 라이브러리의 새 에피소드 확인"
+  "Controlla i nuovi episodi della libreria all'avvio": "시작할 때 라이브러리의 새 에피소드 확인",
+  "Modalita' applet: memoria limitata": "애플릿 모드: 메모리 제한",
+  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "AnikkuNX가 애플릿 모드(앨범)로 실행되었습니다. 사용할 수 있는 메모리가 매우 적어 동영상이 멈추거나 앱이 종료될 수 있습니다.\n\n메모리를 모두 사용하려면:\n• 아무 게임이나 R을 누른 채 실행한 뒤 홈브류 메뉴에서 AnikkuNX를 여세요;\n• 또는 Sphaira로 포워더를 만들고(AnikkuNX에서 X > Install Forwarder) HOME 화면에서 실행하세요."
 }

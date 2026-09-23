@@ -6,6 +6,7 @@
 #include "activity/source_picker.hpp"
 #include "activity/update_activity.hpp"
 #include "util/network.hpp"
+#include "util/platform.hpp"
 
 #ifndef UPDATE_REPO
 #define UPDATE_REPO "DiGiTaLAnGeL92/AnikkuNX"
@@ -42,6 +43,58 @@ static brls::Label* header(const std::string& text) {
 
 // ============================================================================ MainActivity
 
+namespace {
+
+void showFullMemoryHelp() {
+    auto* d = new brls::Dialog(tr(
+        "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e "
+        "i video possono bloccarsi o chiudere l'app.\n\n"
+        "Per avere la memoria piena:\n"
+        "\xE2\x80\xA2 tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n"
+        "\xE2\x80\xA2 oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home."));
+    d->addButton(tr("OK"), [] {});
+    d->open();
+}
+
+/** Avviso in alto a destra quando l'app gira in modalita' applet; toccandolo spiega come avere piu' memoria. */
+class AppletWarning : public brls::Box {
+  public:
+    AppletWarning() {
+        setFocusable(true);
+        setHideHighlightBackground(true);
+        setAlignItems(brls::AlignItems::CENTER);
+        setPadding(4, 14, 4, 40);  // a sinistra lo spazio per l'icona
+        setCornerRadius(16);
+        setBackgroundColor(nvgRGBA(230, 160, 20, 45));
+        setMarginTop(18);
+        auto* l = new brls::Label();
+        l->setText(tr("Modalita' applet: memoria limitata"));
+        l->setFontSize(17);
+        l->setTextColor(nvgRGB(255, 196, 64));
+        addView(l);
+        registerClickAction([](brls::View*) {
+            showFullMemoryHelp();
+            return true;
+        });
+        addGestureRecognizer(new brls::TapGestureRecognizer(this));
+    }
+
+    void draw(NVGcontext* vg, float x, float y, float width, float height, brls::Style style,
+              brls::FrameContext* ctx) override {
+        brls::Box::draw(vg, x, y, width, height, style, ctx);
+        int f = brls::Application::getFont(brls::FONT_MATERIAL_ICONS);
+        if (f < 0) return;
+        nvgFontFaceId(vg, f);
+        nvgFontSize(vg, 22);
+        nvgFillColor(vg, nvgRGB(255, 196, 64));
+        nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+        nvgText(vg, x + 22, y + height / 2, "\xEE\x80\x82", nullptr);  // Material "warning" (U+E002)
+        nvgFontFaceId(vg, brls::Application::getDefaultFont());
+    }
+};
+
+}  // namespace
+
 brls::View* MainActivity::createContentView() {
     auto* tabs = new brls::TabFrame();
     tabs->addTab(tr("Continua a guardare"), [] { return new HistoryTab(); });
@@ -55,6 +108,7 @@ brls::View* MainActivity::createContentView() {
     tabs->getAppletFrameItem()->title = "Anikku NX";
     tabs->getAppletFrameItem()->iconPath = BRLS_ASSET("icon/icon_96.png");
     auto* frame = new brls::AppletFrame(tabs);
+    if (platform::isAppletMode()) frame->getHeader()->addView(new AppletWarning());
     return frame;
 }
 

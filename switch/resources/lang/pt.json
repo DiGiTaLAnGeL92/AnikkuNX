@@ -143,5 +143,7 @@
   "{} episodi nuovi": "{} episódios novos",
   "Nuovi episodi di {}": "Novos episódios de {}",
   "{} anime della libreria hanno nuovi episodi": "{} anime da tua biblioteca têm episódios novos",
-  "Controlla i nuovi episodi della libreria all'avvio": "Procurar episódios novos da biblioteca ao iniciar"
+  "Controlla i nuovi episodi della libreria all'avvio": "Procurar episódios novos da biblioteca ao iniciar",
+  "Modalita' applet: memoria limitata": "Modo applet: memória limitada",
+  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "O AnikkuNX foi aberto em modo applet (a partir do Álbum): a memória disponível é muito limitada e os vídeos podem bloquear ou fechar a app.\n\nPara ter a memória completa:\n• mantém R premido ao abrir qualquer jogo e depois abre o AnikkuNX no menu homebrew;\n• ou cria um forwarder com o Sphaira (X no AnikkuNX > Install Forwarder) e abre-o a partir do menu HOME."
 }
