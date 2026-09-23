@@ -10,6 +10,10 @@
 #include "net/http.hpp"
 #include "util/i18n.hpp"
 
+#ifdef __SWITCH__
+#include <switch.h>
+#endif
+
 #ifndef APP_VERSION
 #define APP_VERSION "0.0.0"
 #endif
@@ -89,14 +93,37 @@ void install(const Release& r, std::function<bool(float)> progress) {
         throw http::Error(tr("Il file scaricato non e' valido, riprova"));
     }
 
-    // sostituzione: il .nro in esecuzione e' gia' in memoria, il file si puo' rimpiazzare
+    // Il .nro in esecuzione resta aperto finche' e' montata la sua romfs (font, traduzioni, certificati):
+    // la Switch non permette di rinominare o cancellare un file aperto. Si smonta la romfs
+    // (da qui in poi l'app va solo chiusa) e si sostituisce il file.
+    std::string errText = tr("Impossibile sostituire {}", nroPath);  // tradotto prima di smontare
+#ifdef __SWITCH__
+    romfsExit();
+#endif
     std::string backup = nroPath + ".old";
     std::remove(backup.c_str());
-    std::rename(nroPath.c_str(), backup.c_str());
+    bool moved = std::rename(nroPath.c_str(), backup.c_str()) == 0;
     if (std::rename(tmp.c_str(), nroPath.c_str()) != 0) {
-        std::rename(backup.c_str(), nroPath.c_str());  // ripristina la versione precedente
+        // ultima possibilita': copia il contenuto sopra il file esistente
+        FILE* in = fopen(tmp.c_str(), "rb");
+        FILE* out = in ? fopen(nroPath.c_str(), "wb") : nullptr;
+        bool ok = in && out;
+        if (ok) {
+            std::vector<char> buf(1 << 20);
+            size_t n;
+            while ((n = fread(buf.data(), 1, buf.size(), in)) > 0)
+                if (fwrite(buf.data(), 1, n, out) != n) {
+                    ok = false;
+                    break;
+                }
+        }
+        if (in) fclose(in);
+        if (out) fclose(out);
+        if (!ok) {
+            if (moved) std::rename(backup.c_str(), nroPath.c_str());  // ripristina la versione precedente
+            throw http::Error(errText);
+        }
         std::remove(tmp.c_str());
-        throw http::Error(tr("Impossibile sostituire {}", nroPath));
     }
     std::remove(backup.c_str());
 }

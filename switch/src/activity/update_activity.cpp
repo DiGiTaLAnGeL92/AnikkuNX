@@ -170,7 +170,9 @@ brls::View* UpdateActivity::createContentView() {
     box->getAppletFrameItem()->title = "AnikkuNX";
     auto* frame = new brls::AppletFrame(box);
     frame->registerAction(tr("Annulla"), brls::BUTTON_B, [this](brls::View*) {
-        if (running)
+        if (mustQuit)
+            brls::Application::quit();  // file gia' sostituito: niente ritorno all'app
+        else if (running)
             cancel->store(true);
         else
             brls::Application::popActivity();
@@ -207,6 +209,7 @@ void UpdateActivity::onContentAvailable() {
         },
         [this](bool) {
             running = false;
+            mustQuit = true;
             progress->store(1.f);
             status->setText(tr("Aggiornamento installato in {}.\nChiudi l'app e riaprila per usare la nuova versione.",
                                updater::appPath()));
@@ -220,5 +223,14 @@ void UpdateActivity::onContentAvailable() {
             running = false;
             status->setText(tr("Aggiornamento non riuscito: {}", err));
             closeBtn->setText(tr("Chiudi"));
+            if (err.find(updater::appPath()) != std::string::npos) {
+                // la romfs e' gia' stata smontata: l'app va chiusa
+                mustQuit = true;
+                closeBtn->setText(tr("Chiudi l'app"));
+                closeBtn->registerClickAction([](brls::View*) {
+                    brls::Application::quit();
+                    return true;
+                });
+            }
         });
 }

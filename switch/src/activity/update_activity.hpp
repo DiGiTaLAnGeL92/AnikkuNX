@@ -32,4 +32,5 @@ class UpdateActivity : public brls::Activity {
     brls::Label* status = nullptr;
     brls::Button* closeBtn = nullptr;
     bool running = false;
+    bool mustQuit = false;  // dopo la sostituzione del .nro si puo' solo chiudere l'app
 };
