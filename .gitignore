@@ -1,0 +1,9 @@
+# dipendenze scaricate da scripts/setup.sh
+switch/library/borealis/
+# build
+switch/build-switch/
+switch/build/
+switch/build_test/
+dist/
+*.log
+pubblica-github.*
