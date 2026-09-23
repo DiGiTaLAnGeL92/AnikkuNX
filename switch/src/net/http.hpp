@@ -2,6 +2,7 @@
 
 #include <map>
 #include <stdexcept>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,6 +44,13 @@ inline Response get(const std::string& url, const Headers& headers = {}, long ti
 
 /** Come get() ma lancia un errore se lo stato non e' 2xx. */
 std::string getText(const std::string& url, const Headers& headers = {}, long timeout = 30);
+
+/**
+ * Scarica un file direttamente su disco (senza tenerlo in memoria), seguendo i redirect.
+ * progress(scaricati, totale) viene chiamato dal thread di lavoro; se ritorna false il download si interrompe.
+ */
+void downloadToFile(const std::string& url, const std::string& path, const Headers& headers = {},
+                    std::function<bool(long long, long long)> progress = nullptr);
 
 std::string urlEncode(const std::string& s);
 /** Risolve un URL relativo rispetto a una base (come "abs:href" di Jsoup). */

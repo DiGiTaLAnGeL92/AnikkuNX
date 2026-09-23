@@ -8,10 +8,12 @@
 #include "config.hpp"
 #include "net/http.hpp"
 #include "util/i18n.hpp"
+#include "app/updater.hpp"
 #include "util/async.hpp"
 #include "view/cover_image.hpp"
 
 int main(int argc, char* argv[]) {
+    if (argc > 0 && argv[0]) updater::setAppPath(argv[0]);  // per sostituire il .nro negli aggiornamenti
     for (int i = 1; i < argc; i++) {
         if (std::strcmp(argv[i], "-d") == 0) brls::Logger::setLogLevel(brls::LogLevel::LOG_DEBUG);
     }

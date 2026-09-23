@@ -42,6 +42,8 @@ void Config::load() {
         sourcesChosen = j.value("sourcesChosen", false);
         showNsfw = j.value("showNsfw", false);
         hardwareDecoding = j.value("hardwareDecoding", true);
+        checkUpdates = j.value("checkUpdates", true);
+        skippedVersion = j.value("skippedVersion", "");
         autoSkipOpening = j.value("autoSkipOpening", false);
         seekSeconds = j.value("seekSeconds", 10);
     } catch (const std::exception& e) {
@@ -57,6 +59,8 @@ void Config::save() {
         {"sourcesChosen", sourcesChosen},
         {"showNsfw", showNsfw},
         {"hardwareDecoding", hardwareDecoding},
+        {"checkUpdates", checkUpdates},
+        {"skippedVersion", skippedVersion},
         {"autoSkipOpening", autoSkipOpening},
         {"seekSeconds", seekSeconds},
     };

@@ -12,8 +12,8 @@ include(${BOREALIS_LIBRARY}/cmake/toolchain.cmake)
 
 project(AnikkuNX)
 set(VERSION_MAJOR "0")
-set(VERSION_MINOR "3")
-set(VERSION_ALTER "1")
+set(VERSION_MINOR "4")
+set(VERSION_ALTER "0")
 set(PROJECT_AUTHOR "Marco")
 set(PROJECT_ICON ${CMAKE_CURRENT_SOURCE_DIR}/resources/icon/icon.jpg)
 set(PROJECT_RESOURCES ${CMAKE_CURRENT_SOURCE_DIR}/resources)
@@ -63,6 +63,10 @@ program_target(${PROJECT_NAME} "${MAIN_SRC}")
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${APP_PLATFORM_INCLUDE})
 target_compile_options(${PROJECT_NAME} PRIVATE -ffunction-sections -fdata-sections ${APP_PLATFORM_OPTION})
+# versione mostrata nelle Impostazioni e repository da cui scaricare gli aggiornamenti
+set(UPDATE_REPO "DiGiTaLAnGeL92/AnikkuNX" CACHE STRING "Repository GitHub delle release")
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    APP_VERSION="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_ALTER}" UPDATE_REPO="${UPDATE_REPO}")
 target_link_libraries(${PROJECT_NAME} PRIVATE borealis gumbo ${APP_PLATFORM_LIB})
 target_link_options(${PROJECT_NAME} PRIVATE ${APP_PLATFORM_LINK_OPTION})
 

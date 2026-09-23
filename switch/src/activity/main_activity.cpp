@@ -4,6 +4,12 @@
 #include "activity/anime_activity.hpp"
 #include "activity/browse_activity.hpp"
 #include "activity/source_picker.hpp"
+#include "activity/update_activity.hpp"
+
+#ifndef UPDATE_REPO
+#define UPDATE_REPO "DiGiTaLAnGeL92/AnikkuNX"
+#endif
+#define UPDATE_REPO_DISPLAY UPDATE_REPO
 #include "config.hpp"
 #include "app/api.hpp"
 #include "sources/source.hpp"
@@ -55,6 +61,8 @@ void MainActivity::onContentAvailable() {
     // primo avvio: scelta delle fonti da attivare
     if (!Config::instance().sourcesChosen)
         brls::delay(100, [] { brls::Application::pushActivity(new SourcePickerActivity(true)); });
+    else if (Config::instance().checkUpdates)
+        brls::delay(1500, [] { checkForUpdates(false); });  // nuova versione su GitHub?
 }
 
 // ============================================================================ TabBase
@@ -357,9 +365,31 @@ SettingsTab::SettingsTab() {
     });
     box->addView(skip);
 
+    box->addView(header(tr("Informazioni")));
+    auto* ver = new brls::DetailCell();
+    ver->setText(tr("Versione"));
+    ver->setDetailText("AnikkuNX v" + updater::currentVersion());
+    box->addView(ver);
+
+    auto* upd = new brls::DetailCell();
+    upd->setText(tr("Controlla aggiornamenti"));
+    upd->setDetailText("github.com/" UPDATE_REPO_DISPLAY);
+    upd->registerClickAction([](brls::View*) {
+        checkForUpdates(true);
+        return true;
+    });
+    box->addView(upd);
+
+    auto* autoUpd = new brls::BooleanCell();
+    autoUpd->init(tr("Controlla aggiornamenti all'avvio"), cfg.checkUpdates, [](bool on) {
+        Config::instance().checkUpdates = on;
+        Config::instance().save();
+    });
+    box->addView(autoUpd);
+
     auto* about = new brls::Label();
     about->setText(tr(
-        "Anikku NX 0.3 \xC2\xB7 app autonoma per Nintendo Switch con fonti italiane, inglesi e multilingua "
+        "App autonoma per Nintendo Switch con fonti italiane, inglesi e multilingua "
         "(porting delle estensioni di Anikku/Aniyomi).\n"
         "Libreria e progressi sono salvati in sdmc:/switch/AnikkuNX. Avvia l'app tenendo premuto R su un gioco "
         "per avere piu' memoria."));

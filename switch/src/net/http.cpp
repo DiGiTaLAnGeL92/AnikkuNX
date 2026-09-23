@@ -4,6 +4,7 @@
 #include <curl/curl.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <cctype>
 #include <mutex>
 #include <set>
@@ -156,6 +157,71 @@ Response request(const std::string& method, const std::string& url, const Header
         throw Error(tr("Errore di rete: {}", curl_easy_strerror(rc)));
     }
     return res;
+}
+
+namespace {
+struct DownloadCtx {
+    FILE* file = nullptr;
+    std::function<bool(long long, long long)> progress;
+};
+
+size_t fileWriteCb(char* ptr, size_t size, size_t nmemb, void* userdata) {
+    auto* ctx = static_cast<DownloadCtx*>(userdata);
+    return fwrite(ptr, size, nmemb, ctx->file) * size;
+}
+
+int progressCb(void* userdata, curl_off_t dltotal, curl_off_t dlnow, curl_off_t, curl_off_t) {
+    auto* ctx = static_cast<DownloadCtx*>(userdata);
+    if (ctx->progress && !ctx->progress((long long)dlnow, (long long)dltotal)) return 1;  // annullato
+    return 0;
+}
+}  // namespace
+
+void downloadToFile(const std::string& url, const std::string& path, const Headers& headers,
+                    std::function<bool(long long, long long)> progress) {
+    DownloadCtx ctx;
+    ctx.progress = std::move(progress);
+    ctx.file = fopen(path.c_str(), "wb");
+    if (!ctx.file) throw Error(tr("Impossibile scrivere {}", path));
+
+    auto attempt = [&](bool insecure) {
+        fseek(ctx.file, 0, SEEK_SET);
+        CURL* curl = curl_easy_init();
+        struct curl_slist* list = nullptr;
+        for (auto& h : headers) list = curl_slist_append(list, (h.first + ": " + h.second).c_str());
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        if (list) curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, DEFAULT_UA);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 10L);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15L);
+        curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 512L);  // interrompe se fermo per 60 s
+        curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
+        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+        curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fileWriteCb);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ctx);
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+        curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progressCb);
+        curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &ctx);
+        if (!caBundle.empty()) curl_easy_setopt(curl, CURLOPT_CAINFO, caBundle.c_str());
+        if (insecure) {
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        }
+        CURLcode rc = curl_easy_perform(curl);
+        curl_slist_free_all(list);
+        curl_easy_cleanup(curl);
+        return rc;
+    };
+    CURLcode rc = attempt(isInsecureHost(hostOf(url)));
+    if (rc == CURLE_PEER_FAILED_VERIFICATION || rc == CURLE_SSL_ISSUER_ERROR) rc = attempt(true);
+    fclose(ctx.file);
+    if (rc != CURLE_OK) {
+        std::remove(path.c_str());
+        if (rc == CURLE_ABORTED_BY_CALLBACK) throw Error(tr("Download annullato"));
+        throw Error(tr("Download non riuscito: {}", curl_easy_strerror(rc)));
+    }
 }
 
 std::string getText(const std::string& url, const Headers& headers, long timeout) {
