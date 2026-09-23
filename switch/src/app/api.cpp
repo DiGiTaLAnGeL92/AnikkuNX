@@ -22,6 +22,7 @@ std::string dataDir;
 std::mutex storeMutex;
 json libraryData = json::array();
 json progressData = json::object();
+json hiddenHistory = json::object();  // animeKey -> istante (ms) in cui e' stato tolto da "Continua a guardare"
 
 std::mutex cacheMutex;
 std::map<std::string, src::Details> detailsCache;       // sourceId|url
@@ -88,6 +89,8 @@ void init(const std::string& dir) {
     std::lock_guard<std::mutex> lock(storeMutex);
     libraryData = readJson(dataDir + "/library.json", json::array());
     progressData = readJson(dataDir + "/progress.json", json::object());
+    hiddenHistory = readJson(dataDir + "/history_hidden.json", json::object());
+    if (!hiddenHistory.is_object()) hiddenHistory = json::object();
     if (!libraryData.is_array()) libraryData = json::array();
     if (!progressData.is_object()) progressData = json::object();
 }
@@ -277,7 +280,13 @@ json history() {
     std::vector<json> items;
     {
         std::lock_guard<std::mutex> lock(storeMutex);
-        for (auto& kv : progressData.items()) items.push_back(kv.value());
+        for (auto& kv : progressData.items()) {
+            const json& p = kv.value();
+            // nascosto dall'utente, finche' non guarda di nuovo qualcosa di quell'anime
+            std::string k = key(p.value("sourceId", ""), p.value("animeUrl", ""));
+            if (hiddenHistory.contains(k) && hiddenHistory[k].get<int64_t>() >= p.value("updatedAt", (int64_t)0)) continue;
+            items.push_back(p);
+        }
     }
     std::sort(items.begin(), items.end(),
               [](const json& a, const json& b) { return a.value("updatedAt", 0LL) > b.value("updatedAt", 0LL); });
@@ -294,6 +303,12 @@ json history() {
         if (out.size() >= 30) break;
     }
     return out;
+}
+
+void removeFromHistory(const std::string& sid, const std::string& animeUrl) {
+    std::lock_guard<std::mutex> lock(storeMutex);
+    hiddenHistory[key(sid, animeUrl)] = nowMs();
+    writeJson(dataDir + "/history_hidden.json", hiddenHistory);
 }
 
 void saveProgress(const json& p) {

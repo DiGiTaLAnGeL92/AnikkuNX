@@ -1,7 +1,6 @@
 {
   "(in pausa)": "(已暂停)",
   "+ Aggiungi alla libreria": "+ 加入书架",
-  "A pausa   Sx/Dx 10s   L/R 85s   X sottotitoli   ZL audio   - precedente   + prossimo   B esci": "A 暂停   左/右 10秒   L/R 85秒   X 字幕   ZL 音轨   - 上一集   + 下一集   B 退出",
   "Aggiorna": "刷新",
   "Aggiunto alla libreria": "已加入书架",
   "Anikku NX 0.3 · app autonoma per Nintendo Switch con fonti italiane, inglesi e multilingua (porting delle estensioni di Anikku/Aniyomi).\nLibreria e progressi sono salvati in sdmc:/switch/AnikkuNX. Avvia l'app tenendo premuto R su un gioco per avere piu' memoria.": "Anikku NX 0.3 · Nintendo Switch 独立应用，支持意大利语、英语和多语言片源（移植自 Anikku/Aniyomi 扩展）。\n书架和观看进度保存在 sdmc:/switch/AnikkuNX。在游戏上按住 R 启动本应用可获得更多内存。",
@@ -108,5 +107,6 @@
   "{}\nPremi B per tornare indietro": "{}\n按 B 返回",
   "{} (carica...)": "{}（加载...）",
   "{} (errore)": "{}（错误）",
-  "{} attive": "已启用 {} 个"
+  "{} attive": "已启用 {} 个",
+  "Togliere \"{}\" da Continua a guardare?": "将“{}”从继续观看中移除？"
 }

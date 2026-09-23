@@ -82,7 +82,8 @@ namespace icon {
 const unsigned ARROW_BACK = 0xe5c4, PLAY = 0xe037, PAUSE = 0xe034, REPLAY = 0xe042, FORWARD = 0xe01f,
                REPLAY_5 = 0xe05b, REPLAY_10 = 0xe059, REPLAY_30 = 0xe05a, FORWARD_5 = 0xe058, FORWARD_10 = 0xe056,
                FORWARD_30 = 0xe057, SKIP_PREV = 0xe045, SKIP_NEXT = 0xe044, SUBTITLES = 0xe048,
-               AUDIOTRACK = 0xe3a1, FAST_FORWARD = 0xe01f, VOLUME = 0xe050, BRIGHTNESS = 0xe1ac;
+               AUDIOTRACK = 0xe3a1, FAST_FORWARD = 0xe01f, FAST_REWIND = 0xe020, VOLUME = 0xe050,
+               BRIGHTNESS = 0xe1ac, CLOSE = 0xe5cd;
 }
 
 static std::string utf8(unsigned cp) {
@@ -278,22 +279,67 @@ void PlayerOverlay::draw(NVGcontext* vg, float x, float y, float width, float he
     std::string times = formatTime(pos) + " / " + formatTime(dur) + (mpv->paused ? "   " + tr("(in pausa)") : "");
     nvgText(vg, barX, barY + 18, times.c_str(), nullptr);
 
-    nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_TOP);
-    nvgFillColor(vg, nvgRGB(190, 190, 195));
-    std::string help = tr("A pausa   Sx/Dx 10s   L/R 85s   X sottotitoli   ZL audio   - precedente   + prossimo   B esci");
-    nvgText(vg, barX + barW, barY + 18, help.c_str(), nullptr);
+    // legenda dei tasti con icone: [tasto] [icona azione], allineata a destra
+    {
+        struct HelpItem {
+            std::string keys;
+            unsigned iconCode;
+            std::string extra;
+        };
+        auto K = [](brls::ControllerButton b) { return brls::Hint::getKeyIcon(b); };
+        unsigned rw = seekStep == 5 ? icon::REPLAY_5 : seekStep == 10 ? icon::REPLAY_10 : seekStep == 30 ? icon::REPLAY_30 : icon::REPLAY;
+        unsigned fw = seekStep == 5 ? icon::FORWARD_5 : seekStep == 10 ? icon::FORWARD_10 : seekStep == 30 ? icon::FORWARD_30 : icon::FORWARD;
+        std::vector<HelpItem> items = {
+            {K(brls::BUTTON_A), mpv->paused ? icon::PLAY : icon::PAUSE, ""},
+            {K(brls::BUTTON_LEFT), rw, ""},
+            {K(brls::BUTTON_RIGHT), fw, ""},
+            {K(brls::BUTTON_LB), icon::FAST_REWIND, ""},
+            {K(brls::BUTTON_RB), icon::FAST_FORWARD, "85s"},
+            {K(brls::BUTTON_X), icon::SUBTITLES, ""},
+            {K(brls::BUTTON_LT), icon::AUDIOTRACK, ""},
+            {K(brls::BUTTON_BACK), icon::SKIP_PREV, ""},
+            {K(brls::BUTTON_START), icon::SKIP_NEXT, ""},
+            {K(brls::BUTTON_B), icon::CLOSE, ""},
+        };
+        const float keySize = 22, iconSize = 24, gapInner = 4, gapOuter = 18, cy = barY + 30;
+        NVGcolor col = nvgRGB(200, 200, 205);
+        auto textWidth = [&](const std::string& t, float size) {
+            nvgFontFaceId(vg, brls::Application::getDefaultFont());
+            nvgFontSize(vg, size);
+            float b[4];
+            return nvgTextBounds(vg, 0, 0, t.c_str(), nullptr, b);
+        };
+        float cx = barX + barW;
+        for (auto it = items.rbegin(); it != items.rend(); ++it) {
+            if (!it->extra.empty()) {
+                float w = textWidth(it->extra, 14);
+                nvgFillColor(vg, col);
+                nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
+                nvgText(vg, cx, cy, it->extra.c_str(), nullptr);
+                cx -= w + 2;
+            }
+            drawIcon(vg, cx - iconSize / 2, cy, iconSize, it->iconCode, col);
+            cx -= iconSize + gapInner;
+            float kw = textWidth(it->keys, keySize);
+            nvgFillColor(vg, col);
+            nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
+            nvgText(vg, cx, cy, it->keys.c_str(), nullptr);
+            cx -= kw + gapOuter;
+        }
+    }
 
     // pulsanti touch sopra la barra, allineati a destra
-    float by = barY - 46, step = 64, bx = barX + barW - 24;
-    drawButton(vg, nextRect, bx, by, 24, icon::SKIP_NEXT, false);
-    drawButton(vg, skipRect, bx - step, by, 24, icon::FAST_FORWARD, false);
+    const float rad = 26.5f;  // +10% rispetto a prima
+    float by = barY - 50, step = 70, bx = barX + barW - rad;
+    drawButton(vg, nextRect, bx, by, rad, icon::SKIP_NEXT, false);
+    drawButton(vg, skipRect, bx - step, by, rad, icon::FAST_FORWARD, false);
     nvgFontSize(vg, 13);
     nvgFillColor(vg, nvgRGB(255, 255, 255));
     nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
-    nvgText(vg, bx - step, by + 26, "85s", nullptr);
-    drawButton(vg, audioRect, bx - step * 2, by, 24, icon::AUDIOTRACK, false);
-    drawButton(vg, subsRect, bx - step * 3, by, 24, icon::SUBTITLES, false);
-    drawButton(vg, prevRect, bx - step * 4, by, 24, icon::SKIP_PREV, false);
+    nvgText(vg, bx - step, by + rad + 1, "85s", nullptr);
+    drawButton(vg, audioRect, bx - step * 2, by, rad, icon::AUDIOTRACK, false);
+    drawButton(vg, subsRect, bx - step * 3, by, rad, icon::SUBTITLES, false);
+    drawButton(vg, prevRect, bx - step * 4, by, rad, icon::SKIP_PREV, false);
 }
 
 // ----------------------------------------------------------------------------- activity

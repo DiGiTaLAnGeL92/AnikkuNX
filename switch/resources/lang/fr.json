@@ -1,7 +1,6 @@
 {
   "(in pausa)": "(en pause)",
   "+ Aggiungi alla libreria": "+ Ajouter à la bibliothèque",
-  "A pausa   Sx/Dx 10s   L/R 85s   X sottotitoli   ZL audio   - precedente   + prossimo   B esci": "A pause   Gauche/Droite 10s   L/R 85s   X sous-titres   ZL audio   - précédent   + suivant   B quitter",
   "Aggiorna": "Actualiser",
   "Aggiunto alla libreria": "Ajouté à la bibliothèque",
   "Anikku NX 0.3 · app autonoma per Nintendo Switch con fonti italiane, inglesi e multilingua (porting delle estensioni di Anikku/Aniyomi).\nLibreria e progressi sono salvati in sdmc:/switch/AnikkuNX. Avvia l'app tenendo premuto R su un gioco per avere piu' memoria.": "Anikku NX 0.3 · application autonome pour Nintendo Switch avec des sources italiennes, anglaises et multilingues (portage des extensions Anikku/Aniyomi).\nLa bibliothèque et la progression sont enregistrées dans sdmc:/switch/AnikkuNX. Lancez l'app en maintenant R sur un jeu pour avoir plus de mémoire.",
@@ -108,5 +107,6 @@
   "{}\nPremi B per tornare indietro": "{}\nAppuyez sur B pour revenir",
   "{} (carica...)": "{} (charger...)",
   "{} (errore)": "{} (erreur)",
-  "{} attive": "{} actives"
+  "{} attive": "{} actives",
+  "Togliere \"{}\" da Continua a guardare?": "Retirer « {} » de Reprendre la lecture ?"
 }

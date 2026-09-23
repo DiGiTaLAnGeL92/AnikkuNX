@@ -23,6 +23,12 @@ class AnimeCard : public brls::Box {
   public:
     AnimeCard(const GridItem& item, float width);
     GridItem item;
+    /** Mostra una "x" in alto a destra (tocco = azione secondaria, es. rimuovi). */
+    bool removable = false;
+    /** true se il punto (coordinate schermo) cade sulla "x". */
+    bool hitsRemoveBadge(const brls::Point& p) const;
+    void draw(NVGcontext* vg, float x, float y, float width, float height, brls::Style style,
+              brls::FrameContext* ctx) override;
 };
 
 /**

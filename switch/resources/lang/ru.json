@@ -1,7 +1,6 @@
 {
   "(in pausa)": "(пауза)",
   "+ Aggiungi alla libreria": "+ Добавить в библиотеку",
-  "A pausa   Sx/Dx 10s   L/R 85s   X sottotitoli   ZL audio   - precedente   + prossimo   B esci": "A пауза   Влево/Вправо 10с   L/R 85с   X субтитры   ZL аудио   - назад   + далее   B выход",
   "Aggiorna": "Обновить",
   "Aggiunto alla libreria": "Добавлено в библиотеку",
   "Anikku NX 0.3 · app autonoma per Nintendo Switch con fonti italiane, inglesi e multilingua (porting delle estensioni di Anikku/Aniyomi).\nLibreria e progressi sono salvati in sdmc:/switch/AnikkuNX. Avvia l'app tenendo premuto R su un gioco per avere piu' memoria.": "Anikku NX 0.3 · автономное приложение для Nintendo Switch с итальянскими, английскими и многоязычными источниками (порт расширений Anikku/Aniyomi).\nБиблиотека и прогресс сохраняются в sdmc:/switch/AnikkuNX. Для большего объёма памяти запускайте приложение, удерживая R на игре.",
@@ -108,5 +107,6 @@
   "{}\nPremi B per tornare indietro": "{}\nНажмите B, чтобы вернуться",
   "{} (carica...)": "{} (загрузить...)",
   "{} (errore)": "{} (ошибка)",
-  "{} attive": "активно: {}"
+  "{} attive": "активно: {}",
+  "Togliere \"{}\" da Continua a guardare?": "Убрать «{}» из «Продолжить просмотр»?"
 }

@@ -42,6 +42,37 @@ AnimeCard::AnimeCard(const GridItem& it, float width) : brls::Box(brls::Axis::CO
     }
 }
 
+static const float BADGE_R = 17;
+
+bool AnimeCard::hitsRemoveBadge(const brls::Point& p) const {
+    if (!removable) return false;
+    auto f = const_cast<AnimeCard*>(this)->getFrame();
+    float cx = f.getMaxX() - 6 - BADGE_R, cy = f.getMinY() + 6 + BADGE_R;
+    float dx = p.x - cx, dy = p.y - cy;
+    return dx * dx + dy * dy <= (BADGE_R + 12) * (BADGE_R + 12);  // area un po' piu' larga del disegno
+}
+
+void AnimeCard::draw(NVGcontext* vg, float x, float y, float width, float height, brls::Style style,
+                     brls::FrameContext* ctx) {
+    brls::Box::draw(vg, x, y, width, height, style, ctx);
+    if (!removable) return;
+    float cx = x + width - 6 - BADGE_R, cy = y + 6 + BADGE_R;
+    nvgBeginPath(vg);
+    nvgCircle(vg, cx, cy, BADGE_R);
+    nvgFillColor(vg, nvgRGBA(0, 0, 0, 170));
+    nvgFill(vg);
+    float d = 6;
+    nvgBeginPath(vg);
+    nvgMoveTo(vg, cx - d, cy - d);
+    nvgLineTo(vg, cx + d, cy + d);
+    nvgMoveTo(vg, cx + d, cy - d);
+    nvgLineTo(vg, cx - d, cy + d);
+    nvgStrokeColor(vg, nvgRGB(255, 255, 255));
+    nvgStrokeWidth(vg, 3);
+    nvgLineCap(vg, NVG_ROUND);
+    nvgStroke(vg);
+}
+
 AnimeGrid::AnimeGrid(int cols, float cw) : columns(cols), cardWidth(cw) {
     this->setGrow(1.0f);
     this->setScrollingBehavior(brls::ScrollingBehavior::CENTERED);
@@ -90,7 +121,21 @@ void AnimeGrid::append(const std::vector<GridItem>& items) {
             if (onSelect) onSelect(card->item);
             return true;
         });
-        card->addGestureRecognizer(new brls::TapGestureRecognizer(card));  // selezione col tocco
+        if (onSecondary) {
+            // tocco: sulla "x" azione secondaria (rimuovi), altrove apre l'anime
+            card->removable = true;
+            card->addGestureRecognizer(new brls::TapGestureRecognizer([this, card](brls::TapGestureStatus st, brls::Sound* snd) {
+                if (st.state != brls::GestureState::END) return;
+                *snd = brls::SOUND_CLICK;
+                if (card->hitsRemoveBadge(st.position)) {
+                    if (onSecondary) onSecondary(card->item);
+                } else if (onSelect) {
+                    onSelect(card->item);
+                }
+            }));
+        } else {
+            card->addGestureRecognizer(new brls::TapGestureRecognizer(card));  // selezione col tocco
+        }
         if (onSecondary) {
             card->registerAction(secondaryHint.empty() ? tr("Opzioni") : secondaryHint, brls::BUTTON_X,
                                  [this, card](brls::View*) {

@@ -28,6 +28,8 @@ json library();
 void addLibrary(const std::string& sourceId, const std::string& url, const std::string& title);
 void removeLibrary(const std::string& sourceId, const std::string& url);
 json history();
+/** Toglie un anime da "Continua a guardare" (i progressi degli episodi restano). */
+void removeFromHistory(const std::string& sourceId, const std::string& animeUrl);
 void saveProgress(const json& progress);
 
 /** Scarica un'immagine (copertina) con le intestazioni giuste per il sito. */

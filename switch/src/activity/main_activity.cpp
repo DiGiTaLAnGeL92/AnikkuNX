@@ -78,6 +78,21 @@ HistoryTab::HistoryTab() {
     grid->onSelect = [](const GridItem& it) {
         brls::Application::pushActivity(new AnimeActivity(it.sourceId, it.url, it.title, it.thumbnail));
     };
+    grid->secondaryHint = tr("Rimuovi");
+    grid->onSecondary = [this](const GridItem& it) {
+        auto* d = new brls::Dialog(tr("Togliere \"{}\" da Continua a guardare?", it.title));
+        d->addButton(tr("Annulla"), [] {});
+        d->addButton(tr("Rimuovi"), [this, it] {
+            runAsync<bool>(
+                alive,
+                [it] {
+                    api::removeFromHistory(it.sourceId, it.url);
+                    return true;
+                },
+                [this](bool) { reload(); });
+        });
+        d->open();
+    };
     this->addView(grid);
     reload();
 }
