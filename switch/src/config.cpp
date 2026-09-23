@@ -43,6 +43,7 @@ void Config::load() {
         showNsfw = j.value("showNsfw", false);
         hardwareDecoding = j.value("hardwareDecoding", true);
         checkUpdates = j.value("checkUpdates", true);
+        checkNewEpisodes = j.value("checkNewEpisodes", true);
         skippedVersion = j.value("skippedVersion", "");
         autoSkipOpening = j.value("autoSkipOpening", false);
         seekSeconds = j.value("seekSeconds", 10);
@@ -60,6 +61,7 @@ void Config::save() {
         {"showNsfw", showNsfw},
         {"hardwareDecoding", hardwareDecoding},
         {"checkUpdates", checkUpdates},
+        {"checkNewEpisodes", checkNewEpisodes},
         {"skippedVersion", skippedVersion},
         {"autoSkipOpening", autoSkipOpening},
         {"seekSeconds", seekSeconds},

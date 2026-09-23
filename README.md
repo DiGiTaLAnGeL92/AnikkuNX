@@ -13,7 +13,9 @@ No PC or server needed: the console talks to the sites directly. The Aniyomi sou
   automatic next episode.
 - **Touch controls**: on-screen buttons, tap or drag the seek bar, double-tap left/right to seek, and swipe up/down
   on the left half (system volume) or the right half (screen brightness).
-- **Library and history**, saved on the SD card.
+- **Library and history**, saved on the SD card. At startup the app checks your library for **new episodes**
+  ("+N" badge, notification).
+- **In-app updates** from the GitHub releases, with the changelog from [CHANGELOG.md](CHANGELOG.md).
 - **Power saving**: no sleep while a video plays. When paused, the screen dims after 30 s and the console sleeps after 60 s.
 - **UI in your console language**: Italian, English, Spanish, French, German, Portuguese, Dutch, Russian, Japanese,
   Korean and Chinese.
@@ -108,6 +110,8 @@ la console si collega direttamente ai siti.
   - tocca lo schermo per mostrare i comandi, e tocca o trascina la barra per spostarti;
   - doppio tocco a sinistra o a destra per −10/+10 s;
   - scorri in verticale a sinistra per il volume di sistema, a destra per la luminosità.
+- **Novità**: all'avvio l'app controlla i nuovi episodi degli anime in Libreria (badge "+N") e gli aggiornamenti
+  dell'app su GitHub. Le note di ogni versione stanno in `CHANGELOG.md`.
 - **Standby**: durante la riproduzione la console non va in standby. In pausa la luminosità si abbassa dopo 30 s e
   la console va in standby dopo 60 s.
 - **Compilare su Windows**: doppio clic su `compila-switch.bat`.

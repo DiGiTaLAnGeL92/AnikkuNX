@@ -6,6 +6,9 @@
 #include "util/async.hpp"
 #include "view/anime_grid.hpp"
 
+/** Controlla i nuovi episodi della libreria appena la console e' connessa a Internet. */
+void checkNewEpisodesWhenOnline(int attempt = 0);
+
 class MainActivity : public brls::Activity {
   public:
     brls::View* createContentView() override;
@@ -36,10 +39,13 @@ class HistoryTab : public TabBase {
 class LibraryTab : public TabBase {
   public:
     LibraryTab();
+    ~LibraryTab() override;
     void willAppear(bool resetState) override;
+    void reload();
+    /** Scheda Libreria attualmente creata (per aggiornarla dopo il controllo dei nuovi episodi). */
+    static LibraryTab* current;
 
   private:
-    void reload();
     AnimeGrid* grid;
     bool appeared = false;
 };

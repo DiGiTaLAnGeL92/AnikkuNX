@@ -28,6 +28,7 @@ class Config {
     bool isSourceEnabled(const std::string& id) const;
     bool hardwareDecoding = true;
     bool checkUpdates = true;       // controlla gli aggiornamenti all'avvio
+    bool checkNewEpisodes = true;   // controlla i nuovi episodi della libreria all'avvio
     std::string skippedVersion;     // versione che l'utente ha scelto di saltare
     bool autoSkipOpening = false;
     int seekSeconds = 10;

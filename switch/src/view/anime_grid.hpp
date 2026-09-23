@@ -15,6 +15,7 @@ struct GridItem {
     std::string subtitle;
     std::string thumbnail;
     nlohmann::json extra;
+    std::string badge;  // es. "+2" (episodi nuovi), mostrato in alto a sinistra sulla copertina
 };
 
 brls::Label* makeLabel(const std::string& text, float size = 18, bool wrap = false);

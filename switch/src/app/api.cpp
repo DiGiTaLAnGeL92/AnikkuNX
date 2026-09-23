@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cstdio>
 #include <fstream>
+#include <functional>
 #include <map>
 #include <mutex>
 
@@ -82,6 +83,22 @@ bool watched(const json& p) {
     return d > 0 && pos >= d * 0.9;
 }
 
+/** Aggiorna il numero di episodi noti di un anime in libreria e azzera le novita' (pagina aperta). */
+void markSeen(const std::string& sid, const std::string& url, int count) {
+    if (count <= 0) return;
+    std::lock_guard<std::mutex> lock(storeMutex);
+    bool changed = false;
+    for (auto& e : libraryData) {
+        if (e.value("sourceId", "") != sid || e.value("url", "") != url) continue;
+        if (e.value("knownEpisodes", -1) != count || e.value("newEpisodes", 0) != 0) {
+            e["knownEpisodes"] = count;
+            e["newEpisodes"] = 0;
+            changed = true;
+        }
+    }
+    if (changed) writeJson(dataDir + "/library.json", libraryData);
+}
+
 }  // namespace
 
 void init(const std::string& dir) {
@@ -145,6 +162,7 @@ json anime(const std::string& sid, const std::string& url, const std::string& ti
         if (!d.thumbnail.empty()) a.thumbnail = d.thumbnail;
     }
     if (d.title.empty()) d.title = title;
+    markSeen(sid, url, (int)d.episodes.size());
 
     json eps = json::array();
     {
@@ -236,8 +254,12 @@ json library() {
     json out = json::array();
     std::lock_guard<std::mutex> lock(storeMutex);
     json sorted = libraryData;
-    std::sort(sorted.begin(), sorted.end(),
-              [](const json& a, const json& b) { return a.value("addedAt", 0LL) > b.value("addedAt", 0LL); });
+    // prima gli anime con episodi nuovi, poi i piu' recenti in libreria
+    std::sort(sorted.begin(), sorted.end(), [](const json& a, const json& b) {
+        bool na = a.value("newEpisodes", 0) > 0, nb = b.value("newEpisodes", 0) > 0;
+        if (na != nb) return na;
+        return a.value("addedAt", 0LL) > b.value("addedAt", 0LL);
+    });
     for (auto& e : sorted) {
         auto s = src::byId(e.value("sourceId", ""));
         json item = e;
@@ -249,10 +271,13 @@ json library() {
 
 void addLibrary(const std::string& sid, const std::string& url, const std::string& title) {
     src::Anime a;
+    int known = -1;
     {
         std::lock_guard<std::mutex> lock(cacheMutex);
         auto it = animeCache.find(key(sid, url));
         if (it != animeCache.end()) a = it->second;
+        auto dit = detailsCache.find(key(sid, url));
+        if (dit != detailsCache.end()) known = (int)dit->second.episodes.size();
     }
     std::lock_guard<std::mutex> lock(storeMutex);
     json filtered = json::array();
@@ -262,9 +287,52 @@ void addLibrary(const std::string& sid, const std::string& url, const std::strin
                         {"url", url},
                         {"title", a.title.empty() ? title : a.title},
                         {"thumbnail", a.thumbnail},
+                        {"knownEpisodes", known},
+                        {"newEpisodes", 0},
                         {"addedAt", nowMs()}});
     libraryData = filtered;
     writeJson(dataDir + "/library.json", libraryData);
+}
+
+json refreshLibrary(const std::function<bool()>& keepGoing) {
+    json entries;
+    {
+        std::lock_guard<std::mutex> lock(storeMutex);
+        entries = libraryData;
+    }
+    json found = json::array();  // anime con episodi nuovi trovati in questo controllo
+    for (auto& e : entries) {
+        if (keepGoing && !keepGoing()) break;
+        std::string sid = e.value("sourceId", ""), url = e.value("url", "");
+        auto s = src::byId(sid);
+        if (!s) continue;
+        int count;
+        try {
+            src::Details d = s->details(url);
+            count = (int)d.episodes.size();
+            std::lock_guard<std::mutex> lock(cacheMutex);
+            detailsCache[key(sid, url)] = d;
+        } catch (const std::exception&) {
+            continue;  // sito non raggiungibile: si riprova al prossimo avvio
+        }
+        if (count <= 0) continue;
+        std::lock_guard<std::mutex> lock(storeMutex);
+        for (auto& le : libraryData) {
+            if (le.value("sourceId", "") != sid || le.value("url", "") != url) continue;
+            int known = le.value("knownEpisodes", -1);
+            if (known < 0 || count < known) {
+                le["knownEpisodes"] = count;  // primo controllo (o episodi rimossi dal sito): nessuna novita'
+            } else if (count > known) {
+                int added = count - known;
+                le["newEpisodes"] = le.value("newEpisodes", 0) + added;
+                le["knownEpisodes"] = count;
+                found.push_back({{"sourceId", sid}, {"url", url}, {"title", le.value("title", "")}, {"added", added}});
+            }
+            le["checkedAt"] = nowMs();
+        }
+        writeJson(dataDir + "/library.json", libraryData);
+    }
+    return found;
 }
 
 void removeLibrary(const std::string& sid, const std::string& url) {

@@ -24,9 +24,17 @@ jobs:
           name: AnikkuNX-nro
           path: dist/AnikkuNX.nro
 
+      - name: Release notes from CHANGELOG.md
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          awk -v v="$VER" '/^## /{p=($2==v); next} p' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "AnikkuNX $GITHUB_REF_NAME" > notes.md
+          cat notes.md
+
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/AnikkuNX.nro
-          generate_release_notes: true
+          body_path: notes.md

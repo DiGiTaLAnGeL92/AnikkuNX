@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <functional>
 #include <string>
 
 /**
@@ -26,6 +27,12 @@ json play(const std::string& token);
 
 json library();
 void addLibrary(const std::string& sourceId, const std::string& url, const std::string& title);
+/**
+ * Controlla i nuovi episodi degli anime in libreria (bloccante, un sito alla volta).
+ * Ritorna gli anime con novita' trovate ora: [{sourceId, url, title, added}].
+ * keepGoing() viene chiamato prima di ogni anime: se ritorna false il controllo si ferma.
+ */
+json refreshLibrary(const std::function<bool()>& keepGoing = nullptr);
 void removeLibrary(const std::string& sourceId, const std::string& url);
 json history();
 /** Toglie un anime da "Continua a guardare" (i progressi degli episodi restano). */

@@ -138,5 +138,10 @@
   "Nessuna connessione a Internet": "Sem ligação à Internet",
   "Icona nella schermata Home (forwarder)": "Ícone no menu HOME (forwarder)",
   "Puoi avviare AnikkuNX direttamente dalla schermata Home della console creando un forwarder con Sphaira:\n\n1. Apri Sphaira (il menu homebrew).\n2. Seleziona AnikkuNX e premi X.\n3. Scegli \"Installa forwarder\" (Install Forwarder) e conferma.\n\nL'icona di AnikkuNX comparira' nella Home insieme ai giochi.": "Podes abrir o AnikkuNX diretamente no menu HOME criando um forwarder com o Sphaira:\n\n1. Abre o Sphaira (o menu homebrew).\n2. Seleciona AnikkuNX e prime X.\n3. Escolhe \"Install Forwarder\" e confirma.\n\nO ícone do AnikkuNX aparece no menu HOME junto aos teus jogos.",
-  "OK": "OK"
+  "OK": "OK",
+  "1 episodio nuovo": "1 episódio novo",
+  "{} episodi nuovi": "{} episódios novos",
+  "Nuovi episodi di {}": "Novos episódios de {}",
+  "{} anime della libreria hanno nuovi episodi": "{} anime da tua biblioteca têm episódios novos",
+  "Controlla i nuovi episodi della libreria all'avvio": "Procurar episódios novos da biblioteca ao iniciar"
 }

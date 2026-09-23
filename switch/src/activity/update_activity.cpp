@@ -1,6 +1,9 @@
 #include "activity/update_activity.hpp"
 
+#include <sstream>
+
 #include "config.hpp"
+#include "util/network.hpp"
 
 #ifdef __SWITCH__
 #include <switch.h>
@@ -41,23 +44,22 @@ class ProgressBar : public brls::View {
 
 std::string shortNotes(std::string notes) {
     // le note generate da GitHub possono essere lunghe: bastano le prime righe
-    if (notes.size() > 350) notes = notes.substr(0, 350) + "...";
+    // il changelog e' in Markdown: toglie titoli e grassetti, tiene gli elenchi
+    std::string clean;
+    std::istringstream in(notes);
+    std::string line;
+    while (std::getline(in, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        while (!line.empty() && line[0] == '#') line.erase(0, 1);
+        size_t p;
+        while ((p = line.find("**")) != std::string::npos) line.erase(p, 2);
+        if (line.rfind("- ", 0) == 0 || line.rfind("* ", 0) == 0) line = "\xE2\x80\xA2 " + line.substr(2);
+        if (!clean.empty() || !line.empty()) clean += line + "\n";
+    }
+    notes = clean;
+    while (!notes.empty() && (notes.back() == '\n' || notes.back() == ' ')) notes.pop_back();
+    if (notes.size() > 700) notes = notes.substr(0, 700) + "...";
     return notes;
-}
-
-/** true se la console e' connessa a Internet (Wi-Fi o cavo) secondo il sistema. */
-bool internetConnected() {
-#ifdef __SWITCH__
-    static bool nifmReady = R_SUCCEEDED(nifmInitialize(NifmServiceType_User));
-    if (!nifmReady) return true;  // servizio non disponibile: si prova comunque
-    NifmInternetConnectionType type;
-    u32 strength = 0;
-    NifmInternetConnectionStatus status;
-    if (R_FAILED(nifmGetInternetConnectionStatus(&type, &strength, &status))) return false;
-    return status == NifmInternetConnectionStatus_Connected;
-#else
-    return true;
-#endif
 }
 
 void runCheck(bool manual, int retriesLeft);
@@ -66,7 +68,7 @@ void runCheck(bool manual, int retriesLeft);
 
 void checkForUpdatesWhenOnline(int attempt) {
     // attende la connessione: un tentativo ogni 5 s per circa 10 minuti, poi rinuncia fino al prossimo avvio
-    if (internetConnected()) {
+    if (network::connected()) {
         runCheck(false, 2);
         return;
     }
@@ -79,7 +81,7 @@ void checkForUpdates(bool manual) {
         checkForUpdatesWhenOnline(0);
         return;
     }
-    if (!internetConnected()) {
+    if (!network::connected()) {
         brls::Application::notify(tr("Nessuna connessione a Internet"));
         return;
     }

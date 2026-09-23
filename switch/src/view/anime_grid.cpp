@@ -55,6 +55,20 @@ bool AnimeCard::hitsRemoveBadge(const brls::Point& p) const {
 void AnimeCard::draw(NVGcontext* vg, float x, float y, float width, float height, brls::Style style,
                      brls::FrameContext* ctx) {
     brls::Box::draw(vg, x, y, width, height, style, ctx);
+    if (!item.badge.empty()) {
+        nvgFontFaceId(vg, brls::Application::getDefaultFont());
+        nvgFontSize(vg, 17);
+        float b[4];
+        nvgTextBounds(vg, 0, 0, item.badge.c_str(), nullptr, b);
+        float w = b[2] - b[0] + 18, h = 28, bx = x + 10, by = y + 10;
+        nvgBeginPath(vg);
+        nvgRoundedRect(vg, bx, by, w, h, h / 2);
+        nvgFillColor(vg, nvgRGB(214, 51, 108));
+        nvgFill(vg);
+        nvgFillColor(vg, nvgRGB(255, 255, 255));
+        nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+        nvgText(vg, bx + w / 2, by + h / 2 + 1, item.badge.c_str(), nullptr);
+    }
     if (!removable) return;
     float cx = x + width - 6 - BADGE_R, cy = y + 6 + BADGE_R;
     nvgBeginPath(vg);

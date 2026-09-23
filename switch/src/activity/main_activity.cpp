@@ -5,6 +5,7 @@
 #include "activity/browse_activity.hpp"
 #include "activity/source_picker.hpp"
 #include "activity/update_activity.hpp"
+#include "util/network.hpp"
 
 #ifndef UPDATE_REPO
 #define UPDATE_REPO "DiGiTaLAnGeL92/AnikkuNX"
@@ -61,8 +62,12 @@ void MainActivity::onContentAvailable() {
     // primo avvio: scelta delle fonti da attivare
     if (!Config::instance().sourcesChosen)
         brls::delay(100, [] { brls::Application::pushActivity(new SourcePickerActivity(true)); });
-    else if (Config::instance().checkUpdates)
-        brls::delay(1500, [] { checkForUpdates(false); });  // nuova versione su GitHub?
+    else {
+        if (Config::instance().checkUpdates)
+            brls::delay(1500, [] { checkForUpdates(false); });  // nuova versione su GitHub?
+        if (Config::instance().checkNewEpisodes)
+            brls::delay(4000, [] { checkNewEpisodesWhenOnline(); });  // nuovi episodi in libreria
+    }
 }
 
 // ============================================================================ TabBase
@@ -73,10 +78,38 @@ TabBase::~TabBase() { *alive = false; }
 
 static std::vector<GridItem> gridFromAnimeArray(const json& arr) {
     std::vector<GridItem> items;
-    for (auto& a : arr)
-        items.push_back({a.value("sourceId", ""), a.value("url", ""), a.value("title", ""), a.value("sourceName", ""),
-                         a.value("thumbnail", ""), a});
+    for (auto& a : arr) {
+        GridItem it{a.value("sourceId", ""), a.value("url", ""), a.value("title", ""), a.value("sourceName", ""),
+                    a.value("thumbnail", ""), a};
+        int n = a.value("newEpisodes", 0);
+        if (n > 0) {
+            it.badge = "+" + std::to_string(n);
+            it.subtitle = n == 1 ? tr("1 episodio nuovo") : tr("{} episodi nuovi", std::to_string(n));
+        }
+        items.push_back(it);
+    }
     return items;
+}
+
+// ============================================================================ Nuovi episodi
+
+void checkNewEpisodesWhenOnline(int attempt) {
+    if (!network::connected()) {
+        if (attempt < 120) brls::delay(5000, [attempt] { checkNewEpisodesWhenOnline(attempt + 1); });
+        return;
+    }
+    static AliveToken appAlive = makeAlive();
+    runAsync<json>(
+        appAlive, [] { return api::refreshLibrary(); },
+        [](json found) {
+            if (LibraryTab::current) LibraryTab::current->reload();
+            if (found.empty()) return;
+            if (found.size() == 1)
+                brls::Application::notify(tr("Nuovi episodi di {}", found[0].value("title", "")));
+            else
+                brls::Application::notify(tr("{} anime della libreria hanno nuovi episodi", std::to_string(found.size())));
+        },
+        [](const std::string&) {});
 }
 
 // ============================================================================ Cronologia
@@ -138,7 +171,14 @@ void HistoryTab::reload() {
 
 // ============================================================================ Libreria
 
+LibraryTab* LibraryTab::current = nullptr;
+
+LibraryTab::~LibraryTab() {
+    if (current == this) current = nullptr;
+}
+
 LibraryTab::LibraryTab() {
+    current = this;
     grid = new AnimeGrid(4, 196);
     grid->onSelect = [](const GridItem& it) {
         brls::Application::pushActivity(new AnimeActivity(it.sourceId, it.url, it.title, it.thumbnail));
@@ -402,6 +442,13 @@ SettingsTab::SettingsTab() {
         Config::instance().save();
     });
     box->addView(autoUpd);
+
+    auto* newEps = new brls::BooleanCell();
+    newEps->init(tr("Controlla i nuovi episodi della libreria all'avvio"), cfg.checkNewEpisodes, [](bool on) {
+        Config::instance().checkNewEpisodes = on;
+        Config::instance().save();
+    });
+    box->addView(newEps);
 
     auto* about = new brls::Label();
     about->setText(tr(
