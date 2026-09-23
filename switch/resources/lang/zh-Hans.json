@@ -135,5 +135,8 @@
   "Impossibile scrivere {}": "无法写入 {}",
   "Download annullato": "下载已取消",
   "Download non riuscito: {}": "下载失败：{}",
-  "Nessuna connessione a Internet": "未连接到互联网"
+  "Nessuna connessione a Internet": "未连接到互联网",
+  "Icona nella schermata Home (forwarder)": "主页图标（转发器）",
+  "Puoi avviare AnikkuNX direttamente dalla schermata Home della console creando un forwarder con Sphaira:\n\n1. Apri Sphaira (il menu homebrew).\n2. Seleziona AnikkuNX e premi X.\n3. Scegli \"Installa forwarder\" (Install Forwarder) e conferma.\n\nL'icona di AnikkuNX comparira' nella Home insieme ai giochi.": "使用 Sphaira 创建转发器后，即可在主页直接启动 AnikkuNX：\n\n1. 打开 Sphaira（自制软件菜单）。\n2. 选择 AnikkuNX 并按 X。\n3. 选择“Install Forwarder”并确认。\n\nAnikkuNX 图标会出现在主页的游戏旁边。",
+  "OK": "OK"
 }

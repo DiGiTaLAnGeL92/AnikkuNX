@@ -366,6 +366,22 @@ SettingsTab::SettingsTab() {
     box->addView(skip);
 
     box->addView(header(tr("Informazioni")));
+    auto* fwd = new brls::DetailCell();
+    fwd->setText(tr("Icona nella schermata Home (forwarder)"));
+    fwd->setDetailText("Sphaira");
+    fwd->registerClickAction([](brls::View*) {
+        auto* d = new brls::Dialog(tr(
+            "Puoi avviare AnikkuNX direttamente dalla schermata Home della console creando un forwarder con Sphaira:\n\n"
+            "1. Apri Sphaira (il menu homebrew).\n"
+            "2. Seleziona AnikkuNX e premi X.\n"
+            "3. Scegli \"Installa forwarder\" (Install Forwarder) e conferma.\n\n"
+            "L'icona di AnikkuNX comparira' nella Home insieme ai giochi."));
+        d->addButton(tr("OK"), [] {});
+        d->open();
+        return true;
+    });
+    box->addView(fwd);
+
     auto* ver = new brls::DetailCell();
     ver->setText(tr("Versione"));
     ver->setDetailText("AnikkuNX v" + updater::currentVersion());
