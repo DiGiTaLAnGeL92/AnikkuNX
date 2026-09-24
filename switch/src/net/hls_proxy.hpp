@@ -20,6 +20,9 @@ bool needsProxy(const std::string& url, const http::Headers& headers);
 /** Restituisce l'URL locale da passare a mpv (avvia il server se serve). Se il server non parte, "" */
 std::string wrap(const std::string& url, const http::Headers& headers);
 
+/** Scrive un diario delle richieste in questo file (svuotato a ogni avvio del proxy). */
+void setLogFile(const std::string& path);
+
 /** Toglie l'intestazione immagine finta davanti a un segmento TS/fMP4 (usata anche dai test). */
 std::string stripFakeHeader(const std::string& data);
 

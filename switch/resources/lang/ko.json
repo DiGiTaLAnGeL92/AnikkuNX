@@ -158,8 +158,6 @@
   "Hindi": "힌디어",
   "Giapponese": "일본어",
   "Lo stream si e' interrotto (segmenti non leggibili)": "스트림이 중단되었습니다 (읽을 수 없는 세그먼트)",
-  "L'app si e' chiusa durante la riproduzione. Per sicurezza ho disattivato i font dei sottotitoli (Impostazioni > Riproduzione). Se non succede piu', era quella la causa.": "재생 중 앱이 종료되었습니다. 안전을 위해 자막 글꼴을 껐습니다(설정 > 재생). 다시 발생하지 않으면 그것이 원인이었습니다.",
-  "L'app si e' chiusa di nuovo durante la riproduzione. Ho disattivato anche il proxy per gli stream camuffati (Impostazioni > Riproduzione).": "재생 중 앱이 다시 종료되었습니다. 위장 스트림용 프록시도 껐습니다(설정 > 재생).",
-  "Sottotitoli con i font della console": "본체 글꼴로 자막 표시",
+  "L'app si e' chiusa durante la riproduzione. Ho disattivato il proxy per gli stream camuffati (Impostazioni > Riproduzione): se il problema sparisce, era quella la causa.": "재생 중 앱이 종료되었습니다. 위장 스트림 프록시를 껐습니다(설정 > 재생). 문제가 사라지면 그것이 원인이었습니다.",
   "Ripara gli stream con segmenti camuffati (proxy locale)": "위장된 세그먼트 스트림 복구(로컬 프록시)"
 }

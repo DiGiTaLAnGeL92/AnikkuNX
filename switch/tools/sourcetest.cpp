@@ -388,6 +388,73 @@ int main(int argc, char** argv) {
         }
         return 0;
     }
+    if (which == "episodio") {
+        // sourcetest episodio <id-fonte> <ricerca> <numero episodio> [cacert]: prova un episodio preciso
+        std::string sid = argc > 2 ? argv[2] : "", q = argc > 3 ? argv[3] : "", num = argc > 4 ? argv[4] : "1";
+        if (argc > 5) http::globalInit(argv[5]);
+        auto s = src::byId(sid);
+        if (!s)
+            for (auto& x : src::all())
+                if (x->name() == sid) s = x;
+        if (!s) { std::cout << "fonte non trovata: " << sid << "\n"; return 1; }
+        setDumpSource(s->id());
+        try {
+            auto res = s->search(q, 1);
+            if (res.animes.empty()) { std::cout << "nessun risultato\n"; return 1; }
+            for (auto& a : res.animes) std::cout << "risultato: " << a.title << " | " << a.url << "\n";
+            size_t pick = 0;
+            for (size_t i = 0; i < res.animes.size(); i++)
+                if (res.animes[i].title == q) { pick = i; break; }
+            auto d = s->details(res.animes[pick].url);
+            std::cout << "anime: " << d.title << " episodi=" << d.episodes.size() << "\n";
+            double n = atof(num.c_str());
+            for (auto& e : d.episodes) {
+                if (e.number != n) continue;
+                std::cout << "episodio: " << e.name << " | " << e.url << "\n";
+                auto vids = s->videos(e.url);
+                for (auto& v : vids) {
+                    std::string detail;
+                    std::string err = probe(v, detail);
+                    std::cout << (err.empty() ? " [OK  ] " : " [FAIL] ") << v.title << " | " << v.url << "\n    " << detail
+                              << (err.empty() ? "" : "\n    " + err) << "\n";
+                    std::cout << "    needsProxy=" << hlsproxy::needsProxy(v.url, playerHeaders(v)) << "\n";
+                    // diagnostica: playlist e primi byte del primo segmento come li vede needsProxy
+                    {
+                        http::Headers h = playerHeaders(v);
+                        http::Response pl = http::get(v.url, h, 20);
+                        std::cout << "    master HTTP " << pl.status << ":\n" << pl.body.substr(0, 600) << "\n";
+                        std::string base = pl.finalUrl.empty() ? v.url : pl.finalUrl;
+                        auto ls = lines(pl.body);
+                        std::string var;
+                        for (size_t i = 0; i + 1 < ls.size(); i++)
+                            if (ls[i].rfind("#EXT-X-STREAM-INF", 0) == 0) { var = ls[i + 1]; break; }
+                        if (!var.empty()) {
+                            std::string vu = http::resolve(base, var);
+                            http::Response vr = http::get(vu, h, 20);
+                            std::cout << "    variante " << vu << " HTTP " << vr.status << ":\n" << vr.body.substr(0, 500) << "\n";
+                            base = vr.finalUrl.empty() ? vu : vr.finalUrl;
+                            for (auto& l : lines(vr.body))
+                                if (!l.empty() && l[0] != '#') {
+                                    http::Headers hr = h;
+                                    hr.push_back({"Range", "bytes=0-2047"});
+                                    http::Response sr = http::get(http::resolve(base, l), hr, 20);
+                                    std::cout << "    segmento " << http::resolve(base, l) << " HTTP " << sr.status << " ct="
+                                              << sr.header("content-type") << " primi byte:";
+                                    for (size_t k = 0; k < 16 && k < sr.body.size(); k++) printf(" %02x", (unsigned char)sr.body[k]);
+                                    std::cout << "\n";
+                                    break;
+                                }
+                        }
+                    }
+                }
+                return 0;
+            }
+            std::cout << "episodio " << num << " non trovato\n";
+        } catch (const std::exception& e) {
+            std::cout << "ERRORE: " << e.what() << "\n";
+        }
+        return 0;
+    }
     if (which == "lista") {
         for (auto& s : src::all())
             std::cout << s->lang() << "\t" << (s->nsfw() ? "18+" : "") << "\t" << s->id() << "\t" << s->name() << "\t"

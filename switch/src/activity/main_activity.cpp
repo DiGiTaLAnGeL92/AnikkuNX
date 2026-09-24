@@ -117,11 +117,8 @@ void MainActivity::onContentAvailable() {
     std::string notice = Config::instance().crashNotice;
     Config::instance().crashNotice.clear();
     if (!notice.empty()) {
-        std::string text = notice == "subs"
-                               ? tr("L'app si e' chiusa durante la riproduzione. Per sicurezza ho disattivato i font dei "
-                                    "sottotitoli (Impostazioni > Riproduzione). Se non succede piu', era quella la causa.")
-                               : tr("L'app si e' chiusa di nuovo durante la riproduzione. Ho disattivato anche il proxy per "
-                                    "gli stream camuffati (Impostazioni > Riproduzione).");
+        std::string text = tr("L'app si e' chiusa durante la riproduzione. Ho disattivato il proxy per gli stream "
+                              "camuffati (Impostazioni > Riproduzione): se il problema sparisce, era quella la causa.");
         brls::delay(800, [text] {
             auto* d = new brls::Dialog(text);
             d->addButton(tr("OK"), [] {});
@@ -461,13 +458,6 @@ SettingsTab::SettingsTab() {
         Config::instance().save();
     });
     box->addView(hw);
-
-    auto* subFonts = new brls::BooleanCell();
-    subFonts->init(tr("Sottotitoli con i font della console"), cfg.subtitleFonts, [](bool on) {
-        Config::instance().subtitleFonts = on;
-        Config::instance().save();
-    });
-    box->addView(subFonts);
 
     auto* proxy = new brls::BooleanCell();
     proxy->init(tr("Ripara gli stream con segmenti camuffati (proxy locale)"), cfg.hlsProxy, [](bool on) {

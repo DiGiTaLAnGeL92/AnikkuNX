@@ -23,6 +23,9 @@ typedef int socklen_t;
 #include <mutex>
 #include <sstream>
 #include <thread>
+#include <pthread.h>
+#include <cstdint>
+#include <cstdio>
 
 namespace hlsproxy {
 
@@ -34,15 +37,28 @@ bool serverFailed = false;
 int nextSession = 1;
 std::map<int, http::Headers> sessions;  // id -> intestazioni della fonte
 std::atomic<int> activeClients{0};
+std::string logPath;
+std::mutex logMutex;
+
+/** Diario del proxy (sdmc:/switch/AnikkuNX/proxy.log): utile se qualcosa va storto sulla console. */
+void proxyLog(const std::string& msg) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    if (logPath.empty()) return;
+    FILE* f = fopen(logPath.c_str(), "a");
+    if (!f) return;
+    fprintf(f, "%s\n", msg.c_str());
+    fclose(f);
+}
 
 // ---------------------------------------------------------------- base64url (senza '=')
 const char* B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 std::string b64enc(const std::string& in) {
     std::string out;
-    int val = 0, bits = -6;
+    unsigned int val = 0;
+    int bits = -6;
     for (unsigned char c : in) {
-        val = (val << 8) + c;
+        val = ((val << 8) + c) & 0xFFFFFF;
         bits += 8;
         while (bits >= 0) {
             out.push_back(B64[(val >> bits) & 0x3F]);
@@ -58,10 +74,11 @@ std::string b64dec(const std::string& in) {
     for (int& t : T) t = -1;
     for (int i = 0; i < 64; i++) T[(unsigned char)B64[i]] = i;
     std::string out;
-    int val = 0, bits = -8;
+    unsigned int val = 0;
+    int bits = -8;
     for (unsigned char c : in) {
         if (T[c] == -1) break;
-        val = (val << 6) + T[c];
+        val = ((val << 6) + (unsigned)T[c]) & 0xFFFFFF;
         bits += 6;
         if (bits >= 0) {
             out.push_back(char((val >> bits) & 0xFF));
@@ -78,8 +95,9 @@ bool looksLikeImage(const std::string& b) {
         size_t n = strlen(m);
         return b.size() >= off + n && b.compare(off, n, m) == 0;
     };
-    return at(0, "\x89PNG") || at(0, "\xFF\xD8\xFF") || at(0, "GIF8") || at(0, "BM") || at(0, "RIFF") ||
-           at(0, "\x00\x00\x01\x00");
+    // attenzione: niente firme che iniziano con \0 (strlen le renderebbe vuote e combacerebbero con tutto)
+    if (b.size() >= 4 && (unsigned char)b[0] == 0x47) return false;  // e' gia' MPEG-TS
+    return at(0, "\x89PNG") || at(0, "\xFF\xD8\xFF") || at(0, "GIF8") || at(0, "BM") || at(0, "RIFF");
 }
 
 std::string proxyUrl(int sid, const std::string& target, bool playlist) {
@@ -175,6 +193,7 @@ void handleClientImpl(int fd) {
             size_t dot = enc.find('.');
             if (dot != std::string::npos) enc = enc.substr(0, dot);
             std::string target = b64dec(enc);
+            proxyLog(std::string(path[1] == 'p' ? "playlist " : "segmento ") + target.substr(0, 120));
             http::Headers headers;
             {
                 std::lock_guard<std::mutex> lock(mtx);
@@ -187,21 +206,26 @@ void handleClientImpl(int fd) {
                     r = http::request("GET", target, headers, "", 60);
                     if (r.status < 500 && r.status != 0) break;
                 }
+                proxyLog("  HTTP " + std::to_string(r.status) + ", " + std::to_string(r.body.size()) + " byte");
                 if (r.status >= 200 && r.status < 300) {
-                    std::string body = r.body;
+                    std::string& body = r.body;
                     std::string base = r.finalUrl.empty() ? target : r.finalUrl;
                     size_t skip = 0;
                     while (skip < body.size() && (unsigned char)body[skip] <= ' ') skip++;
                     if (body.compare(skip, 7, "#EXTM3U") == 0 || body.compare(skip, 10, "\xEF\xBB\xBF#EXTM3U") == 0) {
                         reply(fd, 200, "application/vnd.apple.mpegurl", rewrite(body, base, sid), headOnly);
                     } else {
-                        reply(fd, 200, "video/mp2t", stripFakeHeader(body), headOnly);
+                        std::string clean = stripFakeHeader(body);
+                        proxyLog("  inviati " + std::to_string(clean.size()) + " byte (tolti " +
+                                 std::to_string(body.size() - clean.size()) + ")");
+                        reply(fd, 200, "video/mp2t", clean, headOnly);
                     }
                 } else {
                     reply(fd, r.status ? (int)r.status : 502, "text/plain", "upstream error", headOnly);
                 }
                 ok = true;
             } catch (const std::exception& e) {
+                proxyLog(std::string("  errore: ") + e.what());
                 reply(fd, 502, "text/plain", e.what(), headOnly);
                 ok = true;
             }
@@ -210,7 +234,12 @@ void handleClientImpl(int fd) {
     if (!ok) reply(fd, 404, "text/plain", "not found", headOnly);
 }
 
-void serverLoop(int sock) {
+/**
+ * Pochi thread fissi, creati una volta sola, che fanno accept() e servono la richiesta:
+ * niente thread creati e distrutti per ogni segmento (su Switch le risorse dei thread sono limitate).
+ */
+void* workerLoop(void* arg) {
+    int sock = (int)(intptr_t)arg;
     int failures = 0;
     while (true) {
         sockaddr_in cli{};
@@ -222,17 +251,25 @@ void serverLoop(int sock) {
             continue;
         }
         failures = 0;
-        if (activeClients > 8) {  // ffmpeg apre al massimo 2-3 connessioni: oltre e' un errore
-            close(fd);
-            continue;
-        }
-        try {
-            std::thread(handleClient, fd).detach();
-        } catch (...) {  // niente thread disponibili: gestisce la richiesta qui
-            handleClient(fd);
-        }
+        proxyLog("richiesta");
+        handleClient(fd);
     }
-    close(sock);
+    return nullptr;
+}
+
+bool startWorkers(int sock) {
+    int started = 0;
+    for (int i = 0; i < 3; i++) {
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setstacksize(&attr, 512 * 1024);  // curl + TLS: stack generoso
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        pthread_t th;
+        if (pthread_create(&th, &attr, workerLoop, (void*)(intptr_t)sock) == 0) started++;
+        pthread_attr_destroy(&attr);
+    }
+    proxyLog("thread avviati: " + std::to_string(started));
+    return started > 0;
 }
 
 bool ensureServer() {
@@ -261,9 +298,7 @@ bool ensureServer() {
         serverFailed = true;
         return false;
     }
-    try {
-        std::thread(serverLoop, sock).detach();
-    } catch (...) {
+    if (!startWorkers(sock)) {
         close(sock);
         serverPort = 0;
         serverFailed = true;
@@ -273,6 +308,14 @@ bool ensureServer() {
 }
 
 }  // namespace
+
+void setLogFile(const std::string& path) {
+    std::lock_guard<std::mutex> lock(logMutex);
+    if (logPath == path) return;
+    logPath = path;
+    FILE* f = fopen(path.c_str(), "w");
+    if (f) fclose(f);
+}
 
 std::string stripFakeHeader(const std::string& b) {
     if (!looksLikeImage(b)) return b;
@@ -332,7 +375,11 @@ bool needsProxy(const std::string& url, const http::Headers& headers) {
 
 std::string wrap(const std::string& url, const http::Headers& headers) {
     std::lock_guard<std::mutex> lock(mtx);
-    if (!ensureServer()) return "";
+    if (!ensureServer()) {
+        proxyLog("server non avviato");
+        return "";
+    }
+    proxyLog("nuovo stream: " + url.substr(0, 120));
     int sid = nextSession++;
     sessions[sid] = headers;
     while (sessions.size() > 32) sessions.erase(sessions.begin());

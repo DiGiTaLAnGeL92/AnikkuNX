@@ -47,8 +47,7 @@ void Config::load() {
         skippedVersion = j.value("skippedVersion", "");
         autoSkipOpening = j.value("autoSkipOpening", false);
         seekSeconds = j.value("seekSeconds", 10);
-        subtitleFonts = j.value("subtitleFonts", true);
-        hlsProxy = j.value("hlsProxy", true);
+        hlsProxy = j.value("hlsProxy3", true);
     } catch (const std::exception& e) {
         brls::Logger::error("config.json non valido: {}", e.what());
     }
@@ -67,8 +66,7 @@ void Config::save() {
         {"skippedVersion", skippedVersion},
         {"autoSkipOpening", autoSkipOpening},
         {"seekSeconds", seekSeconds},
-        {"subtitleFonts", subtitleFonts},
-        {"hlsProxy", hlsProxy},
+        {"hlsProxy3", hlsProxy},
     };
     std::ofstream out(configDir() + "/config.json");
     out << j.dump(2);
@@ -108,10 +106,7 @@ void Config::checkPreviousCrash() {
     in.close();
     remove(path.c_str());
     // l'app si e' chiusa durante la riproduzione: disattiva per prima cosa le novita' del player
-    if (subtitleFonts) {
-        subtitleFonts = false;
-        crashNotice = "subs";
-    } else if (hlsProxy) {
+    if (hlsProxy) {
         hlsProxy = false;
         crashNotice = "proxy";
     }

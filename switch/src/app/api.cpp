@@ -256,6 +256,7 @@ json play(const std::string& token) {
             if (lower == "referer" || lower == "user-agent") continue;
             hh.push_back(h);
         }
+        hlsproxy::setLogFile(Config::instance().configDir() + "/proxy.log");
         if (hlsproxy::needsProxy(v.url, hh)) {
             std::string local = hlsproxy::wrap(v.url, hh);
             if (!local.empty()) playUrl = local;

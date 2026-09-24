@@ -158,8 +158,6 @@
   "Hindi": "Hindi",
   "Giapponese": "Japans",
   "Lo stream si e' interrotto (segmenti non leggibili)": "De stream is onderbroken (onleesbare segmenten)",
-  "L'app si e' chiusa durante la riproduzione. Per sicurezza ho disattivato i font dei sottotitoli (Impostazioni > Riproduzione). Se non succede piu', era quella la causa.": "De app sloot tijdens het afspelen. Voor de zekerheid zijn de ondertitellettertypen uitgeschakeld (Instellingen > Afspelen). Gebeurt het niet meer, dan was dat de oorzaak.",
-  "L'app si e' chiusa di nuovo durante la riproduzione. Ho disattivato anche il proxy per gli stream camuffati (Impostazioni > Riproduzione).": "De app sloot opnieuw tijdens het afspelen. Ook de proxy voor vermomde streams is uitgeschakeld (Instellingen > Afspelen).",
-  "Sottotitoli con i font della console": "Ondertitels met de lettertypen van de console",
+  "L'app si e' chiusa durante la riproduzione. Ho disattivato il proxy per gli stream camuffati (Impostazioni > Riproduzione): se il problema sparisce, era quella la causa.": "De app sloot tijdens het afspelen. De proxy voor vermomde streams is uitgeschakeld (Instellingen > Afspelen): verdwijnt het probleem, dan was dat de oorzaak.",
   "Ripara gli stream con segmenti camuffati (proxy locale)": "Streams met vermomde segmenten herstellen (lokale proxy)"
 }

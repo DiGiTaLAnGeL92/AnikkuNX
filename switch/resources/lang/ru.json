@@ -158,8 +158,6 @@
   "Hindi": "Хинди",
   "Giapponese": "Японский",
   "Lo stream si e' interrotto (segmenti non leggibili)": "Поток прервался (сегменты не читаются)",
-  "L'app si e' chiusa durante la riproduzione. Per sicurezza ho disattivato i font dei sottotitoli (Impostazioni > Riproduzione). Se non succede piu', era quella la causa.": "Приложение закрылось во время воспроизведения. На всякий случай шрифты субтитров отключены (Настройки > Воспроизведение). Если это не повторится, причина была в них.",
-  "L'app si e' chiusa di nuovo durante la riproduzione. Ho disattivato anche il proxy per gli stream camuffati (Impostazioni > Riproduzione).": "Приложение снова закрылось во время воспроизведения. Прокси для замаскированных потоков тоже отключён (Настройки > Воспроизведение).",
-  "Sottotitoli con i font della console": "Субтитры шрифтами консоли",
+  "L'app si e' chiusa durante la riproduzione. Ho disattivato il proxy per gli stream camuffati (Impostazioni > Riproduzione): se il problema sparisce, era quella la causa.": "Приложение закрылось во время воспроизведения. Прокси для замаскированных потоков отключён (Настройки > Воспроизведение): если проблема исчезнет, причина была в нём.",
   "Ripara gli stream con segmenti camuffati (proxy locale)": "Исправлять потоки с замаскированными сегментами (локальный прокси)"
 }

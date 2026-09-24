@@ -3,6 +3,14 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.5.6
+
+- Proxy per gli stream camuffati (server HD-1 di Anichi/Anikoto) riscritto: usa pochi thread fissi invece di crearne uno per ogni segmento, niente più chiusure dell'app
+- I sottotitoli usano sempre i font della console (tolta l'opzione: senza, non si vedevano)
+- Se l'app si chiude durante un video, al riavvio spegne il proxy e lo spiega; si riattiva in Impostazioni > Riproduzione
+- Corretto un errore per cui il proxy si attivava su tutti gli stream HLS: AnimeSaturn (es. One Piece 1178) restava su "Caricamento"
+- Diario del proxy in sdmc:/switch/AnikkuNX/proxy.log
+
 ## 0.5.5
 
 - Corretto il crash all'apertura dei video con sottotitoli: il player carica solo il font della console che serve

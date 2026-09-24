@@ -109,7 +109,7 @@ MpvView::MpvView() {
     mpv_set_option_string(mpv, "slang", "it,ita,Italian,Italiano,en,eng");
     mpv_set_option_string(mpv, "alang", "ja,jpn,it,ita");
     mpv_set_option_string(mpv, "sub-font-size", "46");
-    if (Config::instance().subtitleFonts) {
+    {
         std::string fontDir = prepareSubtitleFonts();
         mpv_set_option_string(mpv, "config", "yes");  // serve perche' mpv cerchi ~~/subfont.ttf
         mpv_set_option_string(mpv, "config-dir", fontDir.c_str());
