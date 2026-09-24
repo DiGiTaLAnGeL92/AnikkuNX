@@ -47,12 +47,10 @@ def keys_in(text):
 
 
 files = []
-for pat in ["src/activity/*.cpp", "src/view/*.cpp", "src/app/*.cpp", "src/net/*.cpp", "src/sources/common.cpp", "src/*.cpp"]:
+for pat in ["src/activity/*.cpp", "src/view/*.cpp", "src/app/*.cpp", "src/net/*.cpp", "src/sources/common.cpp", "src/util/i18n.cpp", "src/*.cpp"]:
     files += glob.glob(os.path.join(ROOT, pat))
 keys = {}
 for f in sorted(set(files)):
-    if f.endswith("i18n.cpp"):
-        continue
     for k, line in keys_in(open(f, encoding="utf-8").read()):
         keys.setdefault(k, f"{os.path.relpath(f, ROOT)}:{line}")
 

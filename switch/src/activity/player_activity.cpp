@@ -1,7 +1,9 @@
 #include "activity/player_activity.hpp"
 #include "util/i18n.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <map>
 
 #include "config.hpp"
 
@@ -67,6 +69,7 @@ OverlayHit PlayerOverlay::hitTest(const brls::Point& p) const {
     if (audioRect.contains(p, 6)) return OverlayHit::AUDIO;
     if (skipRect.contains(p, 6)) return OverlayHit::SKIP;
     if (prevRect.contains(p, 6)) return OverlayHit::PREV;
+    if (speedRect.contains(p, 6)) return OverlayHit::SPEED;
     if (nextRect.contains(p, 6)) return OverlayHit::NEXT;
     if (barRect.contains(p, 4)) return OverlayHit::BAR;
     return OverlayHit::NONE;
@@ -83,7 +86,7 @@ const unsigned ARROW_BACK = 0xe5c4, PLAY = 0xe037, PAUSE = 0xe034, REPLAY = 0xe0
                REPLAY_5 = 0xe05b, REPLAY_10 = 0xe059, REPLAY_30 = 0xe05a, FORWARD_5 = 0xe058, FORWARD_10 = 0xe056,
                FORWARD_30 = 0xe057, SKIP_PREV = 0xe045, SKIP_NEXT = 0xe044, SUBTITLES = 0xe048,
                AUDIOTRACK = 0xe3a1, FAST_FORWARD = 0xe01f, FAST_REWIND = 0xe020, VOLUME = 0xe050,
-               BRIGHTNESS = 0xe1ac, CLOSE = 0xe5cd;
+               BRIGHTNESS = 0xe1ac, CLOSE = 0xe5cd, SPEED = 0xe01b;  // av_timer (presente anche nelle versioni vecchie del font)
 }
 
 static std::string utf8(unsigned cp) {
@@ -213,7 +216,8 @@ void PlayerOverlay::draw(NVGcontext* vg, float x, float y, float width, float he
     }
 
     if (!visible) {
-        backRect = rewindRect = playRect = forwardRect = barRect = subsRect = audioRect = skipRect = prevRect = nextRect = {};
+        backRect = rewindRect = playRect = forwardRect = barRect = subsRect = audioRect = skipRect = prevRect = nextRect =
+            speedRect = {};
         return;
     }
 
@@ -299,6 +303,7 @@ void PlayerOverlay::draw(NVGcontext* vg, float x, float y, float width, float he
             {K(brls::BUTTON_LT), icon::AUDIOTRACK, ""},
             {K(brls::BUTTON_BACK), icon::SKIP_PREV, ""},
             {K(brls::BUTTON_START), icon::SKIP_NEXT, ""},
+            {K(brls::BUTTON_RT), icon::SPEED, speedLabel},
             {K(brls::BUTTON_B), icon::CLOSE, ""},
         };
         const float keySize = 22, iconSize = 24, gapInner = 4, gapOuter = 18, cy = barY + 30;
@@ -340,6 +345,20 @@ void PlayerOverlay::draw(NVGcontext* vg, float x, float y, float width, float he
     drawButton(vg, audioRect, bx - step * 2, by, rad, icon::AUDIOTRACK, false);
     drawButton(vg, subsRect, bx - step * 3, by, rad, icon::SUBTITLES, false);
     drawButton(vg, prevRect, bx - step * 4, by, rad, icon::SKIP_PREV, false);
+    // velocita': pulsante tondo con il valore scritto dentro (1x / 1.5x / 2x)
+    {
+        float cx = bx - step * 5;
+        speedRect = {cx - rad, by - rad, rad * 2, rad * 2};
+        nvgBeginPath(vg);
+        nvgCircle(vg, cx, by, rad);
+        nvgFillColor(vg, speedLabel == "1x" ? nvgRGBA(255, 255, 255, 38) : nvgRGBA(214, 51, 108, 200));
+        nvgFill(vg);
+        nvgFontFaceId(vg, brls::Application::getDefaultFont());
+        nvgFontSize(vg, speedLabel.size() > 2 ? 17 : 20);
+        nvgFillColor(vg, nvgRGB(255, 255, 255));
+        nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+        nvgText(vg, cx, by + 1, speedLabel.c_str(), nullptr);
+    }
 }
 
 // ----------------------------------------------------------------------------- activity
@@ -530,6 +549,10 @@ brls::View* PlayerActivity::createContentView() {
         playNext();
         return true;
     }, true);
+    mpv->registerAction("", brls::BUTTON_RT, [this](brls::View*) {
+        cycleSpeed();
+        return true;
+    }, true);
     mpv->registerAction("", brls::BUTTON_BACK, [this](brls::View*) {
         playPrevious();
         return true;
@@ -597,13 +620,54 @@ brls::View* PlayerActivity::createContentView() {
 
     mpv->onFileLoaded = [this] {
         overlay->message.clear();
-        for (auto& s : current.value("subtitles", json::array()))
-            mpv->addSubtitle(s.value("url", ""), s.value("lang", ""));
+        loadedAt = std::chrono::steady_clock::now();
+        loadedFrom = std::max(0.0, mpv->position);
+        // come Aniyomi: seleziona subito i sottotitoli nella lingua preferita (lingua dell'app, poi inglese, poi il primo)
+        auto subs = current.value("subtitles", json::array());
+        int pick = -1;
+        if (!subs.empty()) {
+            std::string ui = brls::Application::getPlatform()->getLocale().substr(0, 2);
+            auto matches = [&](const std::string& lang, const std::vector<std::string>& keys) {
+                std::string l = lang;
+                std::transform(l.begin(), l.end(), l.begin(), [](unsigned char c) { return std::tolower(c); });
+                for (auto& k : keys)
+                    if (l == k || l.rfind(k + "-", 0) == 0 || l.rfind(k + "_", 0) == 0 ||
+                        (k.size() > 3 && l.find(k) != std::string::npos))
+                        return true;
+                return false;
+            };
+            static const std::map<std::string, std::vector<std::string>> names = {
+                {"it", {"it", "ita", "italian", "italiano"}}, {"en", {"en", "eng", "english"}},
+                {"es", {"es", "spa", "spanish", "español", "espanol"}}, {"fr", {"fr", "fre", "fra", "french", "français"}},
+                {"de", {"de", "ger", "deu", "german", "deutsch"}}, {"pt", {"pt", "por", "portuguese", "português"}},
+                {"ru", {"ru", "rus", "russian"}}, {"ja", {"ja", "jpn", "japanese"}}, {"ko", {"ko", "kor", "korean"}},
+                {"zh", {"zh", "chi", "zho", "chinese"}}, {"nl", {"nl", "dut", "nld", "dutch"}}};
+            for (const char* want : {ui.c_str(), "en"}) {
+                auto it = names.find(want);
+                if (it == names.end() || pick >= 0) continue;
+                for (size_t i = 0; i < subs.size() && pick < 0; i++)
+                    if (matches(subs[i].value("lang", ""), it->second)) pick = (int)i;
+            }
+            if (pick < 0) pick = 0;
+        }
+        for (size_t i = 0; i < subs.size(); i++)
+            mpv->addSubtitle(subs[i].value("url", ""), subs[i].value("lang", ""), (int)i == pick);
         for (auto& a : current.value("audio", json::array()))
             mpv->addAudio(a.value("url", ""), a.value("lang", ""));
         overlay->poke(4);
     };
     mpv->onEnd = [this] {
+        // Fine "falsa": lo stream e' arrivato alla fine molto piu' in fretta del tempo reale (segmenti illeggibili
+        // saltati da ffmpeg). Non segnare l'episodio come visto: prova il video/server successivo.
+        auto now = std::chrono::steady_clock::now();
+        double wall = std::chrono::duration<double>(now - loadedAt).count();
+        double media = mpv->duration - loadedFrom;
+        double sinceSeek = std::chrono::duration<double>(now - mpv->lastSeek).count();
+        if (mpv->duration > 120 && media > 60 && wall < media * 0.2 && sinceSeek > 20) {
+            brls::Logger::warning("Fine prematura: {:.0f}s di video in {:.0f}s", media, wall);
+            if (mpv->onError) mpv->onError(tr("Lo stream si e' interrotto (segmenti non leggibili)"));
+            return;
+        }
         saveProgress(true);
         int n = nextIndex();
         if (n >= 0) {
@@ -703,6 +767,16 @@ int PlayerActivity::previousIndex() const {
     return p >= 0 && p < (int)req.episodes.size() ? p : -1;
 }
 
+void PlayerActivity::cycleSpeed() {
+    static const char* values[] = {"1.0", "1.5", "2.0"};
+    static const char* labels[] = {"1x", "1.5x", "2x"};
+    speedIndex = (speedIndex + 1) % 3;
+    mpv->command({"set", "speed", values[speedIndex]});  // mpv mantiene l'audio intonato (scaletempo)
+    overlay->speedLabel = labels[speedIndex];
+    overlay->poke();
+    brls::Application::notify(tr("Velocita' {}", labels[speedIndex]));
+}
+
 void PlayerActivity::playPrevious() {
     int p = previousIndex();
     if (p < 0)
@@ -722,6 +796,7 @@ void PlayerActivity::onTap(const brls::Point& p) {
         case OverlayHit::SKIP: seekBy(85); return;
         case OverlayHit::NEXT: playNext(); return;
         case OverlayHit::PREV: playPrevious(); return;
+        case OverlayHit::SPEED: cycleSpeed(); return;
         case OverlayHit::HINT: skipSegment(); return;
         case OverlayHit::BAR:
             if (mpv->duration > 0) mpv->seekAbsolute(overlay->barFraction(p.x) * mpv->duration);

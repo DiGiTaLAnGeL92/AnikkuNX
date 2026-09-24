@@ -295,12 +295,7 @@ void SourcesTab::willAppear(bool resetState) {
     appeared = true;
 }
 
-static std::string langLabel(const std::string& l) {
-    if (l == "it") return tr("Italiano");
-    if (l == "en") return tr("Inglese");
-    if (l == "all") return tr("Multilingua");
-    return l;
-}
+static std::string langLabel(const std::string& l) { return i18n::languageName(l); }
 
 void SourcesTab::reload() {
     runAsync<json>(

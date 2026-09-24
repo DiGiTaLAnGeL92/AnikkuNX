@@ -27,7 +27,7 @@ struct PlayRequest {
 };
 
 /** Zone toccabili dell'overlay. */
-enum class OverlayHit { NONE, BACK, REWIND, PLAY_PAUSE, FORWARD, BAR, SUBS, AUDIO, SKIP, PREV, NEXT, HINT };
+enum class OverlayHit { NONE, BACK, REWIND, PLAY_PAUSE, FORWARD, BAR, SUBS, AUDIO, SKIP, PREV, NEXT, SPEED, HINT };
 
 struct HitRect {
     float x = 0, y = 0, w = 0, h = 0;
@@ -57,6 +57,7 @@ class PlayerOverlay : public brls::View {
     float dim = 0;  // oscuramento software (0 = nessuno) quando la luminosita' di sistema non e' disponibile
 
     int seekStep = 10;
+    std::string speedLabel = "1x";  // velocita' di riproduzione mostrata sul pulsante
     float scrubFrac = -1;  // >= 0 mentre si trascina la barra
 
     std::string title;
@@ -76,7 +77,7 @@ class PlayerOverlay : public brls::View {
     float gaugeValue = 0;
     bool gaugeLeft = false;
     std::chrono::steady_clock::time_point gaugeUntil;
-    HitRect backRect, rewindRect, playRect, forwardRect, barRect, subsRect, audioRect, skipRect, prevRect, nextRect,
+    HitRect backRect, rewindRect, playRect, forwardRect, barRect, subsRect, audioRect, skipRect, prevRect, nextRect, speedRect,
         hintRect;
 };
 
@@ -103,6 +104,8 @@ class PlayerActivity : public brls::Activity {
     void cycleAudio();
     void playNext();
     void playPrevious();
+    void cycleSpeed();  // 1x -> 1.5x -> 2x -> 1x
+    int speedIndex = 0;
     int previousIndex() const;
     void setVolume(float v);       // 0..1
     void readSystemVolume();
@@ -139,4 +142,6 @@ class PlayerActivity : public brls::Activity {
     std::chrono::steady_clock::time_point lastSave;
     bool autoSkipped = false;
     std::shared_ptr<std::function<void(size_t)>> retryHolder;
+    std::chrono::steady_clock::time_point loadedAt{};
+    double loadedFrom = 0;
 };

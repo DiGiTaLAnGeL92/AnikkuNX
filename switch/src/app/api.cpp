@@ -13,6 +13,7 @@
 
 #include "config.hpp"
 #include "net/http.hpp"
+#include "net/hls_proxy.hpp"
 #include "sources/source.hpp"
 
 namespace api {
@@ -240,8 +241,28 @@ json play(const std::string& token) {
     json subs = json::array(), audio = json::array();
     for (auto& t : v.subtitles) subs.push_back({{"url", t.url}, {"lang", t.lang}});
     for (auto& t : v.audio) audio.push_back({{"url", t.url}, {"lang", t.lang}});
+    // segmenti HLS camuffati da immagine: passano dal proxy locale che toglie l'intestazione finta
+    std::string playUrl = v.url;
+    std::string lowerUrl = v.url;
+    std::transform(lowerUrl.begin(), lowerUrl.end(), lowerUrl.begin(), [](unsigned char c) { return std::tolower(c); });
+    if (lowerUrl.find("m3u8") != std::string::npos) {
+        http::Headers hh;
+        hh.push_back({"User-Agent", v.userAgent.empty() ? http::DEFAULT_UA : v.userAgent});
+        if (!v.referer.empty()) hh.push_back({"Referer", v.referer});
+        if (!v.cookie.empty()) hh.push_back({"Cookie", v.cookie});
+        for (auto& h : v.headers) {
+            std::string lower = h.first;
+            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
+            if (lower == "referer" || lower == "user-agent") continue;
+            hh.push_back(h);
+        }
+        if (hlsproxy::needsProxy(v.url, hh)) {
+            std::string local = hlsproxy::wrap(v.url, hh);
+            if (!local.empty()) playUrl = local;
+        }
+    }
     return {{"title", v.title},
-            {"url", v.url},
+            {"url", playUrl},
             {"subtitles", subs},
             {"audio", audio},
             {"timestamps", json::array()},

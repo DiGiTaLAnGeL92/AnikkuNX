@@ -66,3 +66,25 @@ std::string tr(const std::string& italian, const std::string& a1) { return fill(
 std::string tr(const std::string& italian, const std::string& a1, const std::string& a2) {
     return fill(fill(tr(italian), a1), a2);
 }
+
+std::string i18n::languageName(const std::string& l) {
+    if (l == "it") return tr("Italiano");
+    if (l == "en") return tr("Inglese");
+    if (l == "all") return tr("Multilingua");
+    if (l == "es") return tr("Spagnolo");
+    if (l == "pt") return tr("Portoghese");
+    if (l == "fr") return tr("Francese");
+    if (l == "de") return tr("Tedesco");
+    if (l == "ar") return tr("Arabo");
+    if (l == "id") return tr("Indonesiano");
+    if (l == "tr") return tr("Turco");
+    if (l == "ru") return tr("Russo");
+    if (l == "pl") return tr("Polacco");
+    if (l == "zh") return tr("Cinese");
+    if (l == "ko") return tr("Coreano");
+    if (l == "sr") return tr("Serbo");
+    if (l == "uk") return tr("Ucraino");
+    if (l == "hi") return tr("Hindi");
+    if (l == "ja") return tr("Giapponese");
+    return l;
+}

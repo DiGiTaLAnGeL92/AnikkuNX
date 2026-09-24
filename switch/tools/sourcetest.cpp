@@ -3,12 +3,20 @@
 // primo segmento, MP4, DASH, sottotitoli).
 // Uso: sourcetest [id-fonte|nome|lingua (it/en/all)|18+|tutte] [ricerca] [cacert]
 #include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <mutex>
+#include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 #include <cstring>
 #include <iostream>
 #include <sstream>
 #include <vector>
 
 #include "net/http.hpp"
+#include "net/hls_proxy.hpp"
 #include "sources/registry.hpp"
 #include "sources/source.hpp"
 
@@ -155,6 +163,29 @@ std::string probe(const src::Video& v, std::string& detail) {
         if (seg.status >= 400) return "HTTP " + std::to_string(seg.status) + " sul primo segmento";
         std::string type = classify(seg.body);
         detail += "segmento: " + type;
+        if (type.find("camuffato") != std::string::npos) {
+            // come nell'app: needsProxy + passaggio dal proxy locale, poi si rilegge il primo segmento
+            bool need = hlsproxy::needsProxy(v.url, h);
+            std::string local = need ? hlsproxy::wrap(v.url, h) : "";
+            if (local.empty()) return need ? "proxy locale non avviato" : "segmento camuffato ma needsProxy=no";
+            http::Response p = http::request("GET", local, {}, "", 60);
+            auto pls = lines(p.body);
+            std::string next;
+            for (int depth = 0; depth < 2 && p.status == 200; depth++) {
+                next.clear();
+                bool master = p.body.find("#EXT-X-STREAM-INF") != std::string::npos;
+                for (auto& l : pls)
+                    if (!l.empty() && l[0] != '#') { next = l; break; }
+                if (next.empty()) break;
+                p = http::request("GET", next, {}, "", 60);
+                if (!master) break;
+                pls = lines(p.body);
+            }
+            std::string ptype = p.status == 200 ? classify(p.body) : "HTTP " + std::to_string(p.status);
+            detail += " -> via proxy: " + ptype;
+            if (ptype.find("camuffato") != std::string::npos || ptype.rfind("MPEG-TS", 0) != 0)
+                return "il proxy non ripulisce il segmento (" + ptype + ")";
+        }
         if (type.find("HTML") != std::string::npos || type == "vuoto" || type.find("non video") != std::string::npos)
             return "primo segmento non valido (" + type + ")";
         if (keyUri.empty() && type.find("cifrati") != std::string::npos) return "segmento non riconosciuto";
@@ -180,7 +211,49 @@ std::string probeSub(const src::Video::Track& t, const src::Video& v) {
     return "formato sconosciuto";
 }
 
+// Con ANX_DUMP=<cartella> salva ogni risposta (pagine HTML/JSON, non i video) per capire perche' una fonte fallisce.
+std::string dumpDir;
+std::mutex dumpMutex;
+int dumpCount = 0;
+
+void setDumpSource(const std::string& id) {
+    const char* base = getenv("ANX_DUMP");
+    if (!base || !*base) return;
+    std::lock_guard<std::mutex> lock(dumpMutex);
+    mkdir(base
+#ifndef _WIN32
+          , 0777
+#endif
+    );
+    dumpDir = std::string(base) + "/" + id;
+    mkdir(dumpDir.c_str()
+#ifndef _WIN32
+          , 0777
+#endif
+    );
+    dumpCount = 0;
+    http::debugHook = [](const std::string& method, const std::string& url, const std::string& reqBody,
+                         const http::Response& r) {
+        std::string ct = r.header("content-type");
+        bool text = ct.find("text") != std::string::npos || ct.find("json") != std::string::npos ||
+                    ct.find("javascript") != std::string::npos || ct.find("xml") != std::string::npos || ct.empty();
+        if (!text || r.body.size() > 3000000) return;
+        std::lock_guard<std::mutex> lock(dumpMutex);
+        if (dumpCount >= 60) return;
+        int n = ++dumpCount;
+        char name[32];
+        snprintf(name, sizeof(name), "/%02d.txt", n);
+        std::ofstream f(dumpDir + name, std::ios::binary);
+        f << method << " " << url << "\n";
+        if (!reqBody.empty()) f << "BODY: " << reqBody.substr(0, 2000) << "\n";
+        f << "STATUS " << r.status << " -> " << r.finalUrl << "\nCONTENT-TYPE " << ct << "\n\n" << r.body;
+        std::ofstream idx(dumpDir + "/indice.txt", std::ios::app);
+        idx << name + 1 << "\t" << r.status << "\t" << method << " " << url << "\n";
+    };
+}
+
 Summary test(src::Source& s, const std::string& query) {
+    setDumpSource(s.id());
     Summary sum;
     sum.name = s.name();
     std::cout << "\n===== " << s.name() << " (" << s.baseUrl() << ")\n";
@@ -287,6 +360,40 @@ int main(int argc, char** argv) {
         std::cout << "\n" << r.body.substr(0, 3000) << "\n";
         return 0;
     }
+    if (which == "sonda") {
+        // sonda veloce della home di ogni fonte: stato, redirect, Cloudflare, titolo
+        std::string langs = argc > 2 ? argv[2] : "";
+        for (auto& s : src::all()) {
+            if (!langs.empty() && ("," + langs + ",").find("," + s->lang() + ",") == std::string::npos) continue;
+            std::string info;
+            try {
+                http::Response r = http::request("GET", s->baseUrl(), {}, "", 20);
+                std::string b = r.body;
+                bool cf = b.find("Just a moment") != std::string::npos || b.find("challenge-platform") != std::string::npos ||
+                          b.find("cf-chl") != std::string::npos || b.find("DDoS-Guard") != std::string::npos;
+                std::string title;
+                auto t = b.find("<title");
+                if (t != std::string::npos) {
+                    t = b.find('>', t);
+                    auto e = b.find("</title", t);
+                    if (t != std::string::npos && e != std::string::npos) title = b.substr(t + 1, std::min<size_t>(e - t - 1, 70));
+                }
+                for (auto& c : title)
+                    if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+                info = std::to_string(r.status) + "\t" + (cf ? "CF" : "-") + "\t" + r.finalUrl + "\t" + title;
+            } catch (const std::exception& e) {
+                info = std::string("ERR\t-\t\t") + e.what();
+            }
+            std::cout << s->lang() << "\t" << s->id() << "\t" << s->baseUrl() << "\t" << info << "\n" << std::flush;
+        }
+        return 0;
+    }
+    if (which == "lista") {
+        for (auto& s : src::all())
+            std::cout << s->lang() << "\t" << (s->nsfw() ? "18+" : "") << "\t" << s->id() << "\t" << s->name() << "\t"
+                      << s->baseUrl() << "\n";
+        return 0;
+    }
     std::string query = argc > 2 ? argv[2] : "naruto";
     std::vector<Summary> all;
     auto inList = [&](const std::string& name) {
@@ -298,7 +405,7 @@ int main(int argc, char** argv) {
     };
     for (auto& s : src::all())
         if ((which == "tutte" && !s->nsfw()) || inList(s->id()) || inList(s->name()) ||
-            (which == s->lang() && !s->nsfw()) || (which == "18+" && s->nsfw()))
+            (inList(s->lang()) && !s->nsfw()) || (which == "18+" && s->nsfw()))
             all.push_back(test(*s, query));
 
     std::cout << "\n\n=================== RIEPILOGO ===================\n";

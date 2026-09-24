@@ -145,5 +145,17 @@
   "{} anime della libreria hanno nuovi episodi": "资料库中有 {} 部动画更新了",
   "Controlla i nuovi episodi della libreria all'avvio": "启动时检查资料库新剧集",
   "Modalita' applet: memoria limitata": "小程序模式：内存受限",
-  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "AnikkuNX 以小程序模式（从相册）启动：可用内存非常有限，视频可能卡住或导致应用关闭。\n\n要获得完整内存：\n• 按住 R 启动任意游戏，然后从自制软件菜单打开 AnikkuNX；\n• 或用 Sphaira 创建转发器（在 AnikkuNX 上按 X > Install Forwarder），然后从主页启动。"
+  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "AnikkuNX 以小程序模式（从相册）启动：可用内存非常有限，视频可能卡住或导致应用关闭。\n\n要获得完整内存：\n• 按住 R 启动任意游戏，然后从自制软件菜单打开 AnikkuNX；\n• 或用 Sphaira 创建转发器（在 AnikkuNX 上按 X > Install Forwarder），然后从主页启动。",
+  "Velocita' {}": "速度 {}",
+  "Indonesiano": "印尼语",
+  "Turco": "土耳其语",
+  "Russo": "俄语",
+  "Polacco": "波兰语",
+  "Cinese": "中文",
+  "Coreano": "韩语",
+  "Serbo": "塞尔维亚语",
+  "Ucraino": "乌克兰语",
+  "Hindi": "印地语",
+  "Giapponese": "日语",
+  "Lo stream si e' interrotto (segmenti non leggibili)": "视频流中断（片段无法读取）"
 }

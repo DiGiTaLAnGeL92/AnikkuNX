@@ -145,5 +145,17 @@
   "{} anime della libreria hanno nuovi episodi": "{} anime in your library have new episodes",
   "Controlla i nuovi episodi della libreria all'avvio": "Check library for new episodes at startup",
   "Modalita' applet: memoria limitata": "Applet mode: limited memory",
-  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "AnikkuNX was launched in applet mode (from the Album): available memory is very limited and videos may freeze or close the app.\n\nTo get full memory:\n• hold R while launching any game, then open AnikkuNX from the homebrew menu;\n• or create a forwarder with Sphaira (X on AnikkuNX > Install Forwarder) and launch it from the HOME screen."
+  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "AnikkuNX was launched in applet mode (from the Album): available memory is very limited and videos may freeze or close the app.\n\nTo get full memory:\n• hold R while launching any game, then open AnikkuNX from the homebrew menu;\n• or create a forwarder with Sphaira (X on AnikkuNX > Install Forwarder) and launch it from the HOME screen.",
+  "Velocita' {}": "Speed {}",
+  "Indonesiano": "Indonesian",
+  "Turco": "Turkish",
+  "Russo": "Russian",
+  "Polacco": "Polish",
+  "Cinese": "Chinese",
+  "Coreano": "Korean",
+  "Serbo": "Serbian",
+  "Ucraino": "Ukrainian",
+  "Hindi": "Hindi",
+  "Giapponese": "Japanese",
+  "Lo stream si e' interrotto (segmenti non leggibili)": "The stream stopped (unreadable segments)"
 }

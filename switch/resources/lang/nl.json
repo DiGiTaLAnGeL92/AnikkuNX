@@ -145,5 +145,17 @@
   "{} anime della libreria hanno nuovi episodi": "{} anime in je bibliotheek hebben nieuwe afleveringen",
   "Controlla i nuovi episodi della libreria all'avvio": "Bij opstarten zoeken naar nieuwe afleveringen in de bibliotheek",
   "Modalita' applet: memoria limitata": "Appletmodus: beperkt geheugen",
-  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "AnikkuNX is gestart in appletmodus (vanuit het Album): er is erg weinig geheugen en video's kunnen vastlopen of de app sluiten.\n\nVoor het volledige geheugen:\n• houd R ingedrukt terwijl je een willekeurige game start en open daarna AnikkuNX vanuit het homebrewmenu;\n• of maak een forwarder met Sphaira (X op AnikkuNX > Install Forwarder) en start de app vanuit het HOME-menu."
+  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "AnikkuNX is gestart in appletmodus (vanuit het Album): er is erg weinig geheugen en video's kunnen vastlopen of de app sluiten.\n\nVoor het volledige geheugen:\n• houd R ingedrukt terwijl je een willekeurige game start en open daarna AnikkuNX vanuit het homebrewmenu;\n• of maak een forwarder met Sphaira (X op AnikkuNX > Install Forwarder) en start de app vanuit het HOME-menu.",
+  "Velocita' {}": "Snelheid {}",
+  "Indonesiano": "Indonesisch",
+  "Turco": "Turks",
+  "Russo": "Russisch",
+  "Polacco": "Pools",
+  "Cinese": "Chinees",
+  "Coreano": "Koreaans",
+  "Serbo": "Servisch",
+  "Ucraino": "Oekraïens",
+  "Hindi": "Hindi",
+  "Giapponese": "Japans",
+  "Lo stream si e' interrotto (segmenti non leggibili)": "De stream is onderbroken (onleesbare segmenten)"
 }

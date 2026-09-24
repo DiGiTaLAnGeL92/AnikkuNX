@@ -133,6 +133,8 @@ static CURLcode perform(const std::string& method, const std::string& url, const
     return rc;
 }
 
+std::function<void(const std::string&, const std::string&, const std::string&, const Response&)> debugHook;
+
 Response request(const std::string& method, const std::string& url, const Headers& headers, const std::string& body,
                  long timeoutSeconds, bool followRedirects) {
     Response res;
@@ -156,6 +158,7 @@ Response request(const std::string& method, const std::string& url, const Header
             throw Error(tr("Errore di connessione sicura con {} ({})", host, curl_easy_strerror(rc)));
         throw Error(tr("Errore di rete: {}", curl_easy_strerror(rc)));
     }
+    if (debugHook) debugHook(method, url, body, res);
     return res;
 }
 

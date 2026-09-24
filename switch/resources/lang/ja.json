@@ -145,5 +145,17 @@
   "{} anime della libreria hanno nuovi episodi": "ライブラリの {} 作品に新しいエピソードがあります",
   "Controlla i nuovi episodi della libreria all'avvio": "起動時にライブラリの新エピソードを確認",
   "Modalita' applet: memoria limitata": "アプレットモード：メモリ制限あり",
-  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "AnikkuNX はアプレットモード（アルバムから）で起動されています。使用できるメモリが非常に少なく、動画が止まったりアプリが終了したりすることがあります。\n\nメモリを最大限使うには：\n• 任意のゲームを R を押しながら起動し、homebrew メニューから AnikkuNX を開く\n• または Sphaira でフォワーダーを作成し（AnikkuNX で X > Install Forwarder）、HOMEメニューから起動する"
+  "AnikkuNX e' stata avviata in modalita' applet (dall'Album): la memoria disponibile e' molto ridotta e i video possono bloccarsi o chiudere l'app.\n\nPer avere la memoria piena:\n• tieni premuto R mentre avvii un gioco qualsiasi, poi apri AnikkuNX dal menu homebrew;\n• oppure crea un forwarder con Sphaira (X su AnikkuNX > Install Forwarder) e avviala dalla Home.": "AnikkuNX はアプレットモード（アルバムから）で起動されています。使用できるメモリが非常に少なく、動画が止まったりアプリが終了したりすることがあります。\n\nメモリを最大限使うには：\n• 任意のゲームを R を押しながら起動し、homebrew メニューから AnikkuNX を開く\n• または Sphaira でフォワーダーを作成し（AnikkuNX で X > Install Forwarder）、HOMEメニューから起動する",
+  "Velocita' {}": "再生速度 {}",
+  "Indonesiano": "インドネシア語",
+  "Turco": "トルコ語",
+  "Russo": "ロシア語",
+  "Polacco": "ポーランド語",
+  "Cinese": "中国語",
+  "Coreano": "韓国語",
+  "Serbo": "セルビア語",
+  "Ucraino": "ウクライナ語",
+  "Hindi": "ヒンディー語",
+  "Giapponese": "日本語",
+  "Lo stream si e' interrotto (segmenti non leggibili)": "ストリームが中断しました（読み込めないセグメント）"
 }

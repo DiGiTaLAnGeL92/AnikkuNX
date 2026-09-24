@@ -31,6 +31,9 @@ class Error : public std::runtime_error {
 
 extern const char* DEFAULT_UA;
 
+/** Solo per lo strumento di prova: se impostato, riceve ogni richiesta completata (metodo, url, corpo inviato, risposta). */
+extern std::function<void(const std::string&, const std::string&, const std::string&, const Response&)> debugHook;
+
 void globalInit(const std::string& caBundlePath);
 void globalCleanup();
 

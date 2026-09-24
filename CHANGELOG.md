@@ -3,6 +3,18 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.5.4
+
+- Nuovo pulsante nel player per la velocità di riproduzione: 1x, 1.5x, 2x (anche con ZR)
+- Sottotitoli finalmente visibili: il player usa i font della console. Quelli esterni si attivano da soli, nella lingua della console o in inglese
+- Corretti i video che saltavano subito alla fine (server HD-1 di Anichi/Anikoto e simili): i segmenti camuffati da immagine ora vengono ripuliti
+- Se uno stream si interrompe a metà, l'episodio non viene segnato come visto e si prova il server successivo
+- Nuove fonti in altre lingue (da attivare in Impostazioni → Scegli le fonti), tutte provate fino al video:
+  - Spagnolo: Jkanime, AnimeAV1, Latanime, MundoDonghua, VerAni.me, VerAnimes, BeatZ Anime, PelisPlus, Cineplus123, VerPelisTop
+  - Portoghese: Animes Digital · Francese: Anime-Sama, Vostfree · Tedesco: AniWorld, AnimeToast
+  - Arabo: Asia2TV, TukTukCinema · Russo: Animevost, YummyAnime · Indonesiano: Samehadaku
+  - Cinese: Xifan, Aiyifan, Nivod, Xiaobao · Serbo: AnimeBalkan
+
 ## 0.5.3
 
 - Fonti inglesi verificate a fondo, fino al primo segmento video

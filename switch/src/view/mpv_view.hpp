@@ -1,6 +1,7 @@
 #pragma once
 
 #include <borealis.hpp>
+#include <chrono>
 #include <mpv/client.h>
 #include <mpv/render_gl.h>
 
@@ -24,7 +25,7 @@ class MpvView : public brls::View {
               brls::FrameContext* ctx) override;
 
     void load(const std::string& url, double startSeconds, const std::vector<std::pair<std::string, std::string>>& opts);
-    void addSubtitle(const std::string& url, const std::string& lang);
+    void addSubtitle(const std::string& url, const std::string& lang, bool select = false);
     void addAudio(const std::string& url, const std::string& lang);
     void togglePause();
     void setPause(bool pause);
@@ -40,6 +41,8 @@ class MpvView : public brls::View {
     bool buffering = false;
     bool loaded = false;
     bool ended = false;
+    /** ultimo seek (anche dell'utente): serve a distinguere una fine vera da uno stream rotto */
+    std::chrono::steady_clock::time_point lastSeek{};
 
     std::function<void()> onFileLoaded;
     std::function<void()> onEnd;

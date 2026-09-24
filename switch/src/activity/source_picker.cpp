@@ -8,17 +8,7 @@
 #include "config.hpp"
 #include "sources/source.hpp"
 
-static std::string langName(const std::string& l) {
-    if (l == "it") return tr("Italiano");
-    if (l == "en") return tr("Inglese");
-    if (l == "all") return tr("Multilingua");
-    if (l == "es") return tr("Spagnolo");
-    if (l == "pt") return tr("Portoghese");
-    if (l == "fr") return tr("Francese");
-    if (l == "de") return tr("Tedesco");
-    if (l == "ar") return tr("Arabo");
-    return l;
-}
+static std::string langName(const std::string& l) { return i18n::languageName(l); }
 
 static brls::Label* sectionHeader(const std::string& text) {
     auto* l = new brls::Label();
@@ -91,8 +81,11 @@ brls::View* SourcePickerActivity::createContentView() {
 
 void SourcePickerActivity::rebuild() {
     list->clearViews();
-    // raggruppa per lingua mantenendo l'ordine: italiano, inglese, multilingua, altre
-    std::vector<std::string> order = {"it", "en", "all"};
+    // raggruppa per lingua: italiano, lingua della console, inglese, multilingua, poi le altre
+    std::vector<std::string> order = {"it"};
+    std::string ui = i18n::language().substr(0, 2);
+    for (const std::string& l : {ui, std::string("en"), std::string("all")})
+        if (std::find(order.begin(), order.end(), l) == order.end()) order.push_back(l);
     for (auto& s : src::all())
         if (std::find(order.begin(), order.end(), s->lang()) == order.end()) order.push_back(s->lang());
 

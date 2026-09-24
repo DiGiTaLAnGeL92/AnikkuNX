@@ -8,3 +8,6 @@ dist/
 *.log
 pubblica-github.*
 fonti-da-provare.txt
+log-fonti/
+*.tgz
+lingue-da-provare.txt

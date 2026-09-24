@@ -25,11 +25,21 @@ No PC or server needed: the console talks to the sites directly. The Aniyomi sou
 | Language | Sources |
 |---|---|
 | Italian | AnimeWorld, AnimeUnity, AnimeSaturn |
-| English | Anichi, Anikoto, AniWave, AnimeSogo, AnimeKai, KickAssAnime, AnimePahe*, WCO sites (Wcofun, WCOStream, WcoAnimeSub, WcoAnimeDub, WcoForever, WcoTv — recent episodes only), Animenosub, AnimeKhor*, LuciferDonghua, DonghuaStream |
-| Multi | AnimeXin, ChineseAnime, LMAnime |
+| English | Anichi, Anikoto, AniWave, AnimeSogo, AnimeKai, KickAssAnime, WCO sites (Wcofun, WCOStream, WcoAnimeSub, WcoAnimeDub, WcoForever, WcoTv — recent episodes only), Animenosub, AnimeKhor*, LuciferDonghua, DonghuaStream |
+| Multi | AnimeXin, LMAnime |
+| Spanish | Jkanime, AnimeAV1, Latanime, MundoDonghua, VerAni.me, VerAnimes, BeatZ Anime, PelisPlus (2), Cineplus123, VerPelisTop |
+| Portuguese | Animes Digital |
+| French | Anime-Sama, Vostfree |
+| German | AniWorld, AnimeToast |
+| Arabic | Asia2TV, TukTukCinema |
+| Russian | Animevost (+ mirror), YummyAnime |
+| Indonesian | Samehadaku |
+| Chinese | 稀饭动漫 (Xifan), 爱壹帆 (Aiyifan), 泥视频 (Nivod), 小宝影院 (Xiaobao) |
+| Serbian | AnimeBalkan |
 | 18+ (hidden, opt-in) | Hstream, HentaiHaven, HentaiMama, Oppai Stream |
 
-\* often blocked by anti-bot protection or moved to a new domain. Sites change address often: you can set a new domain
+\* often blocked by anti-bot protection or moved to a new domain. Many more sources (Turkish, Polish, Korean, Ukrainian…)
+are ported in `switch/src/sources/` but hidden until they pass `testa-altre-lingue.bat` (Cloudflare, dead or moved sites). Sites change address often: you can set a new domain
 per source in *Settings*, no rebuild needed.
 
 ## Install

@@ -16,6 +16,53 @@
 
 #include "config.hpp"
 
+#include <sys/stat.h>
+#include <cstdio>
+#ifdef __SWITCH__
+#include <switch.h>
+#endif
+
+/**
+ * libass per Switch e' compilato senza font provider di sistema (niente fontconfig): senza un font
+ * esplicito i sottotitoli vengono caricati ma non disegnati. Estraiamo i font di sistema della console
+ * (servizio pl, gia' decifrati in memoria) in <configDir>/mpv e li passiamo a mpv:
+ *  - subfont.ttf  = font di ripiego usato da libass quando il font richiesto non esiste
+ *  - fonts/       = tutti i font (latino, cinese, coreano, simboli) per sub-fonts-dir
+ */
+static std::string prepareSubtitleFonts() {
+    std::string dir = Config::instance().configDir() + "/mpv";
+    mkdir(dir.c_str(), 0777);
+    mkdir((dir + "/fonts").c_str(), 0777);
+#ifdef __SWITCH__
+    struct Item {
+        PlSharedFontType type;
+        const char* name;
+    } items[] = {
+        {PlSharedFontType_Standard, "standard.ttf"},
+        {PlSharedFontType_ChineseSimplified, "zh-hans.ttf"},
+        {PlSharedFontType_ExtChineseSimplified, "zh-hans-ext.ttf"},
+        {PlSharedFontType_ChineseTraditional, "zh-hant.ttf"},
+        {PlSharedFontType_KO, "ko.ttf"},
+        {PlSharedFontType_NintendoExt, "nintendo-ext.ttf"},
+    };
+    auto writeFile = [](const std::string& path, const void* data, size_t size) {
+        struct stat st;
+        if (stat(path.c_str(), &st) == 0 && (size_t)st.st_size == size) return;
+        FILE* f = fopen(path.c_str(), "wb");
+        if (!f) return;
+        fwrite(data, 1, size, f);
+        fclose(f);
+    };
+    for (auto& it : items) {
+        PlFontData font;
+        if (R_FAILED(plGetSharedFontByType(&font, it.type)) || !font.address || !font.size) continue;
+        writeFile(dir + "/fonts/" + it.name, font.address, font.size);
+        if (it.type == PlSharedFontType_Standard) writeFile(dir + "/subfont.ttf", font.address, font.size);
+    }
+#endif
+    return dir;
+}
+
 static void* getProcAddress(void*, const char* name) {
 #ifdef __SDL2__
     return SDL_GL_GetProcAddress(name);
@@ -54,6 +101,21 @@ MpvView::MpvView() {
     mpv_set_option_string(mpv, "slang", "it,ita,Italian,Italiano,en,eng");
     mpv_set_option_string(mpv, "alang", "ja,jpn,it,ita");
     mpv_set_option_string(mpv, "sub-font-size", "46");
+    {
+        std::string fontDir = prepareSubtitleFonts();
+        mpv_set_option_string(mpv, "config", "yes");  // serve perche' mpv cerchi ~~/subfont.ttf
+        mpv_set_option_string(mpv, "config-dir", fontDir.c_str());
+        mpv_set_option_string(mpv, "sub-fonts-dir", (fontDir + "/fonts").c_str());
+        mpv_set_option_string(mpv, "sub-font-provider", "none");
+        std::string loc = brls::Application::getPlatform()->getLocale();
+        const char* family = "nintendo_udsg-r_std_003";
+        if (loc == brls::LOCALE_ZH_HANS) family = "nintendo_udsg-r_org_zh-cn_003";
+        else if (loc == brls::LOCALE_ZH_HANT) family = "nintendo_udjxh-db_zh-tw_003";
+        else if (loc == brls::LOCALE_Ko) family = "nintendo_udsg-r_ko_003";
+        mpv_set_option_string(mpv, "sub-font", family);
+        mpv_set_option_string(mpv, "sub-border-size", "3");
+        mpv_set_option_string(mpv, "sub-ass-force-margins", "yes");
+    }
     mpv_set_option_string(mpv, "demuxer-max-bytes", "64MiB");
     mpv_set_option_string(mpv, "demuxer-max-back-bytes", "16MiB");
     mpv_set_option_string(mpv, "cache", "yes");
@@ -224,8 +286,8 @@ void MpvView::load(const std::string& url, double startSeconds,
     setPause(false);
 }
 
-void MpvView::addSubtitle(const std::string& url, const std::string& lang) {
-    command({"sub-add", url, "auto", lang, lang});
+void MpvView::addSubtitle(const std::string& url, const std::string& lang, bool select) {
+    command({"sub-add", url, select ? "select" : "auto", lang, lang});
 }
 
 void MpvView::addAudio(const std::string& url, const std::string& lang) { command({"audio-add", url, "auto", lang, lang}); }
@@ -234,9 +296,13 @@ void MpvView::togglePause() { command({"cycle", "pause"}); }
 
 void MpvView::setPause(bool p) { command({"set", "pause", p ? "yes" : "no"}); }
 
-void MpvView::seekRelative(double seconds) { command({"seek", std::to_string((long)seconds), "relative"}); }
+void MpvView::seekRelative(double seconds) {
+    lastSeek = std::chrono::steady_clock::now();
+    command({"seek", std::to_string((long)seconds), "relative"}); }
 
-void MpvView::seekAbsolute(double seconds) { command({"seek", std::to_string((long)seconds), "absolute"}); }
+void MpvView::seekAbsolute(double seconds) {
+    lastSeek = std::chrono::steady_clock::now();
+    command({"seek", std::to_string((long)seconds), "absolute"}); }
 
 void MpvView::stop() { command({"stop"}); }
 

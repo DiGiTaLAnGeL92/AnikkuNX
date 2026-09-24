@@ -14,6 +14,8 @@ namespace i18n {
 void init();
 /** Codice della lingua attiva ("it", "en", "es", ...). */
 const std::string& language();
+/** Nome (tradotto) della lingua di una fonte: "es" -> "Spagnolo". */
+std::string languageName(const std::string& code);
 
 }  // namespace i18n
 

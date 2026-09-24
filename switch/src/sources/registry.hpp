@@ -19,6 +19,14 @@ std::shared_ptr<Source> makeAnimePahe();                         // animepahe.cp
 std::shared_ptr<Source> makeKickAssAnime();                      // kickassanime.cpp
 std::vector<std::shared_ptr<Source>> makeAdultSources();         // adult.cpp (18+)
 
+// Altre lingue
+std::vector<std::shared_ptr<Source>> makeDooplaySources();       // dooplay.cpp (de, en, es, fr, pt)
+std::vector<std::shared_ptr<Source>> makeSpanishSources();       // lang_es.cpp (+ tema pelisplus)
+std::vector<std::shared_ptr<Source>> makePortugueseSources();    // lang_pt.cpp
+std::vector<std::shared_ptr<Source>> makeFrenchGermanSources();  // lang_fr_de.cpp (+ tema datalifeengine)
+std::vector<std::shared_ptr<Source>> makeArTrRuPlSources();      // lang_ar_tr_ru_pl.cpp
+std::vector<std::shared_ptr<Source>> makeAsiaOtherSources();     // lang_asia_other.cpp (id, zh, ko, sr, uk, hi, all)
+
 /** Imposta un dominio alternativo per una fonte (stringa vuota = predefinito). */
 void setBaseUrlOverride(const std::string& id, const std::string& url);
 
