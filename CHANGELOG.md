@@ -3,6 +3,13 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.5.3
+
+- Fonti inglesi verificate a fondo, fino al primo segmento video
+- Corretto ok.ru (AnimeKhor, AnimeXin, DonghuaStream): i video ora partono
+- Rumble aggiornato; i link Dailymotion bloccati vengono saltati
+- Tolte AnimePahe e ChineseAnime: i siti richiedono una verifica Cloudflare fattibile solo da browser
+
 ## 0.5.2
 
 - Avviso in alto a destra se l'app è aperta in modalità applet (dall'Album): memoria limitata, i video possono bloccarsi

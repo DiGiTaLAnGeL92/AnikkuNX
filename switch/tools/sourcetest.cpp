@@ -1,7 +1,12 @@
-// Prova da riga di comando delle fonti integrate (senza interfaccia).
+// Prova approfondita delle fonti integrate (senza interfaccia): catalogo, ricerca, dettagli e
+// riproducibilita' reale dei video, facendo gli stessi passaggi del player (playlist HLS, chiave AES,
+// primo segmento, MP4, DASH, sottotitoli).
 // Uso: sourcetest [id-fonte|nome|lingua (it/en/all)|18+|tutte] [ricerca] [cacert]
 #include <cstdio>
+#include <cstring>
 #include <iostream>
+#include <sstream>
+#include <vector>
 
 #include "net/http.hpp"
 #include "sources/registry.hpp"
@@ -17,59 +22,289 @@ std::string tr(const std::string& s) { return s; }
 std::string tr(const std::string& s, const std::string& a) { return fillArg(s, a); }
 std::string tr(const std::string& s, const std::string& a, const std::string& b) { return fillArg(fillArg(s, a), b); }
 
-static void test(src::Source& s, const std::string& query) {
+namespace {
+
+struct Summary {
+    std::string name;
+    std::string popular = "-", latest = "-", search = "-", details = "-";
+    int videos = 0, playable = 0;
+};
+
+std::string cut(const std::string& s, size_t n = 110) { return s.size() > n ? s.substr(0, n) + "..." : s; }
+
+http::Headers playerHeaders(const src::Video& v) {
+    http::Headers h;
+    h.push_back({"User-Agent", v.userAgent.empty() ? http::DEFAULT_UA : v.userAgent});
+    if (!v.referer.empty()) h.push_back({"Referer", v.referer});
+    if (!v.cookie.empty()) h.push_back({"Cookie", v.cookie});
+    for (auto& kv : v.headers) {
+        std::string k = kv.first;
+        for (auto& c : k) c = (char)tolower((unsigned char)c);
+        if (k != "referer" && k != "user-agent") h.push_back(kv);
+    }
+    return h;
+}
+
+http::Response fetchRange(const std::string& url, http::Headers h, int bytes) {
+    if (bytes > 0) h.push_back({"Range", "bytes=0-" + std::to_string(bytes - 1)});
+    return http::request("GET", url, h, "", 25);
+}
+
+/** Tipo del contenuto di un segmento o file video. */
+std::string classify(const std::string& b) {
+    auto at = [&](size_t off, const char* sig) {
+        size_t n = strlen(sig);
+        return b.size() >= off + n && b.compare(off, n, sig) == 0;
+    };
+    if (b.empty()) return "vuoto";
+    if ((unsigned char)b[0] == 0x47 && (b.size() < 189 || (unsigned char)b[188] == 0x47)) return "MPEG-TS";
+    if (at(4, "ftyp") || at(4, "styp") || at(4, "moof") || at(4, "sidx")) return "MP4/fMP4";
+    if (at(0, "\x1A\x45\xDF\xA3")) return "WebM/MKV";
+    if (at(0, "ID3") || (b.size() > 1 && (unsigned char)b[0] == 0xFF && ((unsigned char)b[1] & 0xF0) == 0xF0))
+        return "audio AAC/ID3";
+    // segmenti camuffati da immagine: cerca il sync TS dopo l'intestazione finta
+    if (at(0, "\x89PNG") || at(0, "\xFF\xD8\xFF") || at(0, "GIF8") || at(0, "BM")) {
+        for (size_t i = 0; i + 376 < b.size() && i < 4096; i++)
+            if ((unsigned char)b[i] == 0x47 && (unsigned char)b[i + 188] == 0x47 && (unsigned char)b[i + 376] == 0x47)
+                return "MPEG-TS (camuffato da immagine)";
+        return "immagine (non video?)";
+    }
+    std::string head = b.substr(0, 200);
+    for (auto& c : head) c = (char)tolower((unsigned char)c);
+    if (head.find("<html") != std::string::npos || head.find("<!doctype") != std::string::npos) return "HTML (errore/protezione)";
+    return "dati binari (probabilmente cifrati)";
+}
+
+std::vector<std::string> lines(const std::string& s) {
+    std::vector<std::string> out;
+    std::istringstream in(s);
+    std::string l;
+    while (std::getline(in, l)) {
+        if (!l.empty() && l.back() == '\r') l.pop_back();
+        out.push_back(l);
+    }
+    return out;
+}
+
+std::string attr(const std::string& line, const std::string& name) {
+    auto p = line.find(name + "=");
+    if (p == std::string::npos) return "";
+    p += name.size() + 1;
+    if (p < line.size() && line[p] == '"') {
+        auto e = line.find('"', p + 1);
+        return line.substr(p + 1, e == std::string::npos ? std::string::npos : e - p - 1);
+    }
+    auto e = line.find(',', p);
+    return line.substr(p, e == std::string::npos ? std::string::npos : e - p);
+}
+
+/** Verifica che il video sia riproducibile come farebbe mpv. Ritorna "" se ok, altrimenti il motivo. */
+std::string probe(const src::Video& v, std::string& detail) {
+    http::Headers h = playerHeaders(v);
+    // come mpv: le playlist si chiedono intere (alcuni CDN rifiutano il Range sulle .m3u8)
+    bool looksPlaylist = v.url.find(".m3u8") != std::string::npos || v.url.find(".mpd") != std::string::npos ||
+                         v.url.find("/manifest") != std::string::npos || v.url.find("playlist") != std::string::npos;
+    http::Response r = fetchRange(v.url, h, looksPlaylist ? 0 : 65536);
+    if (r.status >= 400) {
+        detail += "url completo: " + v.url + " | risposta: " + cut(r.body, 200);
+        return "HTTP " + std::to_string(r.status) + " sul link del video";
+    }
+    std::string body = r.body;
+    std::string base = r.finalUrl.empty() ? v.url : r.finalUrl;
+
+    if (body.find("#EXTM3U") < 16) {
+        auto ls = lines(body);
+        for (size_t i = 0; i < ls.size(); i++) {
+            if (ls[i].rfind("#EXT-X-STREAM-INF", 0) != 0) continue;
+            for (size_t j = i + 1; j < ls.size(); j++) {
+                if (ls[j].empty() || ls[j][0] == '#') continue;
+                std::string variant = http::resolve(base, ls[j]);
+                r = fetchRange(variant, h, 0);
+                if (r.status >= 400) {
+                    detail += "variante: " + variant;
+                    return "HTTP " + std::to_string(r.status) + " sulla playlist della qualita'";
+                }
+                base = r.finalUrl.empty() ? variant : r.finalUrl;
+                ls = lines(r.body);
+                detail += "master->variante; ";
+                break;
+            }
+            break;
+        }
+        std::string segment, keyUri;
+        int segCount = 0;
+        for (auto& l : ls) {
+            if (l.rfind("#EXT-X-KEY", 0) == 0 && keyUri.empty()) {
+                if (attr(l, "METHOD") != "NONE") keyUri = attr(l, "URI");
+            } else if (l.rfind("#EXT-X-MAP", 0) == 0 && segment.empty()) {
+                segment = http::resolve(base, attr(l, "URI"));  // init fMP4
+            } else if (!l.empty() && l[0] != '#') {
+                segCount++;
+                if (segment.empty()) segment = http::resolve(base, l);
+            }
+        }
+        if (segment.empty()) return "playlist senza segmenti";
+        detail += std::to_string(segCount) + " segmenti; ";
+        if (!keyUri.empty()) {
+            http::Response k = http::request("GET", http::resolve(base, keyUri), h, "", 20);
+            if (k.status >= 400) return "HTTP " + std::to_string(k.status) + " sulla chiave AES";
+            if (k.body.size() != 16) return "chiave AES di " + std::to_string(k.body.size()) + " byte (attesi 16)";
+            detail += "chiave AES ok; ";
+        }
+        http::Response seg = fetchRange(segment, h, 4096);
+        if (seg.status >= 400) return "HTTP " + std::to_string(seg.status) + " sul primo segmento";
+        std::string type = classify(seg.body);
+        detail += "segmento: " + type;
+        if (type.find("HTML") != std::string::npos || type == "vuoto" || type.find("non video") != std::string::npos)
+            return "primo segmento non valido (" + type + ")";
+        if (keyUri.empty() && type.find("cifrati") != std::string::npos) return "segmento non riconosciuto";
+        return "";
+    }
+    std::string lower = body.substr(0, 400);
+    for (auto& c : lower) c = (char)tolower((unsigned char)c);
+    if (lower.find("<mpd") != std::string::npos) {
+        detail += "DASH (.mpd)";
+        return "";
+    }
+    std::string type = classify(body);
+    detail += type;
+    if (type == "MP4/fMP4" || type == "WebM/MKV" || type.rfind("MPEG-TS", 0) == 0) return "";
+    return "contenuto non riproducibile (" + type + ")";
+}
+
+std::string probeSub(const src::Video::Track& t, const src::Video& v) {
+    http::Response r = fetchRange(t.url, playerHeaders(v), 2048);
+    if (r.status >= 400) return "HTTP " + std::to_string(r.status);
+    if (r.body.find("WEBVTT") != std::string::npos || r.body.find("-->") != std::string::npos) return "ok (VTT/SRT)";
+    if (r.body.find("[Script Info]") != std::string::npos) return "ok (ASS)";
+    return "formato sconosciuto";
+}
+
+Summary test(src::Source& s, const std::string& query) {
+    Summary sum;
+    sum.name = s.name();
     std::cout << "\n===== " << s.name() << " (" << s.baseUrl() << ")\n";
+    src::Page pop, r;
     try {
-        auto p = s.popular(1);
-        std::cout << "popolari: " << p.animes.size() << " (altre pagine: " << p.hasNextPage << ")\n";
-        for (size_t i = 0; i < p.animes.size() && i < 3; i++)
-            std::cout << "  - " << p.animes[i].title << " | " << p.animes[i].url << " | " << p.animes[i].thumbnail << "\n";
-    } catch (const std::exception& e) { std::cout << "popolari ERRORE: " << e.what() << "\n"; }
-    try {
-        auto l = s.latest(1);
-        std::cout << "recenti: " << l.animes.size() << "\n";
-        for (size_t i = 0; i < l.animes.size() && i < 2; i++) std::cout << "  - " << l.animes[i].title << " | " << l.animes[i].url << "\n";
-    } catch (const std::exception& e) { std::cout << "recenti ERRORE: " << e.what() << "\n"; }
-    src::Page r;
+        pop = s.popular(1);
+        sum.popular = std::to_string(pop.animes.size());
+        std::cout << "popolari: " << pop.animes.size() << " (altre pagine: " << pop.hasNextPage << ")\n";
+        for (size_t i = 0; i < pop.animes.size() && i < 2; i++)
+            std::cout << "  - " << pop.animes[i].title << " | " << pop.animes[i].url << " | " << cut(pop.animes[i].thumbnail) << "\n";
+    } catch (const std::exception& e) {
+        sum.popular = "ERR";
+        std::cout << "popolari ERRORE: " << e.what() << "\n";
+    }
+    if (s.supportsLatest()) {
+        try {
+            auto l = s.latest(1);
+            sum.latest = std::to_string(l.animes.size());
+            std::cout << "recenti: " << l.animes.size() << "\n";
+        } catch (const std::exception& e) {
+            sum.latest = "ERR";
+            std::cout << "recenti ERRORE: " << e.what() << "\n";
+        }
+    }
     try {
         r = s.search(query, 1);
+        sum.search = std::to_string(r.animes.size());
         std::cout << "ricerca '" << query << "': " << r.animes.size() << "\n";
-        for (size_t i = 0; i < r.animes.size() && i < 3; i++) std::cout << "  - " << r.animes[i].title << " | " << r.animes[i].url << "\n";
-    } catch (const std::exception& e) { std::cout << "ricerca ERRORE: " << e.what() << "\n"; }
-    if (r.animes.empty()) return;
-    try {
-        auto d = s.details(r.animes[0].url);
-        std::cout << "dettagli: " << d.title << " | stato=" << d.status << " | generi=" << d.genre << " | autore=" << d.author
-                  << "\n  copertina=" << d.thumbnail << "\n  trama=" << d.description.substr(0, 120) << "\n  episodi: " << d.episodes.size() << "\n";
-        for (size_t i = 0; i < d.episodes.size() && i < 3; i++)
-            std::cout << "  - " << d.episodes[i].name << " #" << d.episodes[i].number << " | " << d.episodes[i].url << "\n";
-        if (d.episodes.empty()) return;
-        auto vids = s.videos(d.episodes.back().url);
-        std::cout << "video (" << d.episodes.back().name << "): " << vids.size() << "\n";
+        for (size_t i = 0; i < r.animes.size() && i < 2; i++) std::cout << "  - " << r.animes[i].title << " | " << r.animes[i].url << "\n";
+    } catch (const std::exception& e) {
+        sum.search = "ERR";
+        std::cout << "ricerca ERRORE: " << e.what() << "\n";
+    }
+
+    // fino a 2 anime: dai risultati della ricerca, altrimenti dai popolari
+    std::vector<src::Anime> picks;
+    for (auto& a : r.animes)
+        if (picks.size() < 2) picks.push_back(a);
+    for (auto& a : pop.animes)
+        if (picks.size() < 2) picks.push_back(a);
+    int detailsOk = 0;
+    for (auto& a : picks) {
+        std::cout << "\n  >> " << a.title << "\n";
+        src::Details d;
+        try {
+            d = s.details(a.url);
+            detailsOk++;
+            std::cout << "  dettagli: '" << d.title << "' stato=" << d.status << " episodi=" << d.episodes.size()
+                      << " copertina=" << (d.thumbnail.empty() ? "NO" : "si") << " trama=" << (d.description.empty() ? "NO" : "si")
+                      << "\n";
+        } catch (const std::exception& e) {
+            std::cout << "  dettagli ERRORE: " << e.what() << "\n";
+            continue;
+        }
+        if (d.episodes.empty()) continue;
+        const src::Episode& ep = d.episodes.front();  // il piu' recente, come quello che si guarda davvero
+        std::cout << "  episodio: " << ep.name << " #" << ep.number << " | " << cut(ep.url) << "\n";
+        std::vector<src::Video> vids;
+        try {
+            vids = s.videos(ep.url);
+        } catch (const std::exception& e) {
+            std::cout << "  video ERRORE: " << e.what() << "\n";
+            continue;
+        }
+        std::cout << "  video trovati: " << vids.size() << "\n";
+        int tested = 0;
         for (auto& v : vids) {
-            std::cout << "  - " << v.title << " | " << v.url << " | referer=" << v.referer << "\n";
+            if (tested++ >= 4) break;  // bastano i primi (quelli che il player prova per primi)
+            sum.videos++;
+            std::string detail, err;
+            try {
+                err = probe(v, detail);
+            } catch (const std::exception& e) {
+                err = e.what();
+            }
+            if (err.empty()) sum.playable++;
+            std::cout << "   [" << (err.empty() ? "OK  " : "FAIL") << "] " << v.title << " | " << cut(v.url, 90) << "\n"
+                      << "          " << (err.empty() ? detail : err + (detail.empty() ? "" : " | " + detail)) << "\n";
+            if (!v.subtitles.empty()) {
+                std::string sr;
+                try {
+                    sr = probeSub(v.subtitles[0], v);
+                } catch (const std::exception& e) {
+                    sr = e.what();
+                }
+                std::cout << "          sottotitoli: " << v.subtitles.size() << " (" << v.subtitles[0].lang << ": " << sr << ")\n";
+            }
         }
-        if (!vids.empty()) {
-            http::Headers h;
-            if (!vids[0].referer.empty()) h.push_back({"Referer", vids[0].referer});
-            if (!vids[0].userAgent.empty()) h.push_back({"User-Agent", vids[0].userAgent});
-            if (!vids[0].cookie.empty()) h.push_back({"Cookie", vids[0].cookie});
-            for (auto& kv : vids[0].headers) h.push_back(kv);
-            h.push_back({"Range", "bytes=0-2047"});
-            auto resp = http::request("GET", vids[0].url, h, "", 30);
-            std::cout << "  prova download: HTTP " << resp.status << " tipo=" << resp.header("content-type")
-                      << " byte=" << resp.body.size() << " inizio=" << resp.body.substr(0, 40) << "\n";
-        }
-    } catch (const std::exception& e) { std::cout << "dettagli/video ERRORE: " << e.what() << "\n"; }
+    }
+    sum.details = std::to_string(detailsOk) + "/" + std::to_string(picks.size());
+    return sum;
 }
+
+}  // namespace
 
 int main(int argc, char** argv) {
     http::globalInit(argc > 3 ? argv[3] : "");
     std::string which = argc > 1 ? argv[1] : "tutte";
+    if (which.rfind("http", 0) == 0) {
+        // modalita' diagnostica: mostra la risposta grezza di un URL
+        http::Response r = http::request("GET", which, {}, "", 25);
+        std::cout << "HTTP " << r.status << " -> " << r.finalUrl << "\n";
+        for (auto& kv : r.headers) std::cout << kv.first << ": " << kv.second << "\n";
+        std::cout << "\n" << r.body.substr(0, 3000) << "\n";
+        return 0;
+    }
     std::string query = argc > 2 ? argv[2] : "naruto";
+    std::vector<Summary> all;
+    auto inList = [&](const std::string& name) {
+        std::string item;
+        std::istringstream in(which);
+        while (std::getline(in, item, ','))
+            if (item == name) return true;
+        return false;
+    };
     for (auto& s : src::all())
-        if ((which == "tutte" && !s->nsfw()) || which == s->id() || which == s->name() ||
+        if ((which == "tutte" && !s->nsfw()) || inList(s->id()) || inList(s->name()) ||
             (which == s->lang() && !s->nsfw()) || (which == "18+" && s->nsfw()))
-            test(*s, query);
+            all.push_back(test(*s, query));
+
+    std::cout << "\n\n=================== RIEPILOGO ===================\n";
+    printf("%-24s %6s %6s %6s %8s %14s\n", "fonte", "popol", "ultime", "cerca", "dettagli", "video ok/prov");
+    for (auto& s : all)
+        printf("%-24s %6s %6s %6s %8s %8d/%-5d\n", s.name.substr(0, 24).c_str(), s.popular.c_str(), s.latest.c_str(),
+               s.search.c_str(), s.details.c_str(), s.playable, s.videos);
     http::globalCleanup();
 }

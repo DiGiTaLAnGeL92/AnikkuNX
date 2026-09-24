@@ -216,6 +216,7 @@ std::vector<Video> hlsVideos(const std::string& master, const std::string& refer
     if (!userAgent.empty()) h.push_back({"User-Agent", userAgent});
     for (auto& kv : extra) h.push_back(kv);
 
+    bool bare = false;  // il CDN accetta solo richieste senza Referer/Origin del sito
     auto make = [&](const std::string& url, int q) {
         Video v;
         v.url = url;
@@ -227,14 +228,37 @@ std::vector<Video> hlsVideos(const std::string& master, const std::string& refer
         for (auto& kv : extra)
             if (lower(kv.first) != "referer" && lower(kv.first) != "user-agent") v.headers.push_back(kv);
         v.subtitles = subs;
+        if (bare) {
+            v.referer.clear();
+            v.headers.clear();
+        }
         return v;
     };
 
     std::string body;
+    int status = 0;
     try {
         http::Response r = http::request("GET", master, h, "", 20);
+        status = r.status;
         if (r.status >= 200 && r.status < 300) body = r.body;
     } catch (const std::exception&) {
+    }
+    if (status == 401 || status == 403) {
+        // alcuni CDN rifiutano Referer/Origin del sito: si riprova senza; se va, il video si usa senza
+        try {
+            http::Headers plain = {{"Accept", "*/*"}};
+            if (!userAgent.empty()) plain.push_back({"User-Agent", userAgent});
+            http::Response r = http::request("GET", master, plain, "", 20);
+            if (r.status >= 200 && r.status < 300) {
+                bare = true;
+                if (r.body.find("#EXT-X-STREAM-INF") == std::string::npos) return {make(master, 0)};
+                body = r.body;
+            } else {
+                return {};  // playlist non raggiungibile: inutile proporla al player
+            }
+        } catch (const std::exception&) {
+            return {};
+        }
     }
     if (body.find("#EXT-X-STREAM-INF") == std::string::npos) return {make(master, 0)};
 
@@ -379,16 +403,34 @@ std::vector<Video> okru(const std::string& rawUrl, const std::string& prefix) {
         break;
     }
     if (options.empty()) return {};
-    auto extractLink = [](const std::string& s, const std::string& attr) {
-        return replaceAll(substringBefore(substringAfter(s, attr + R"(\":\")"), R"(\")"), R"(\\u0026)", "&");
+    // ok.ru a volte annida i metadati come stringa JSON (virgolette \") e a volte come oggetto (virgolette "):
+    // si cercano entrambe le forme; se il campo manca si restituisce "" (non tutta la stringa)
+    auto extractLink = [](const std::string& s, const std::string& attr) -> std::string {
+        std::string v;
+        for (const std::string& pat : {attr + R"(\":\")", attr + R"(":")"}) {
+            auto p = s.find(pat);
+            if (p == std::string::npos) continue;
+            p += pat.size();
+            auto e = s.find('"', p);
+            if (e == std::string::npos) continue;
+            v = s.substr(p, e - p);
+            if (!v.empty() && v.back() == '\\') v.pop_back();
+            break;
+        }
+        v = replaceAll(v, R"(\\u0026)", "&");
+        v = replaceAll(v, R"(\u0026)", "&");
+        v = replaceAll(v, R"(\/)", "/");
+        return v.rfind("http", 0) == 0 ? v : "";
     };
     std::string namePrefix = prefix + "Okru - ";
-    if (contains(options, "ondemandHls")) {
-        return hlsVideos(extractLink(options, "ondemandHls"), "", namePrefix);
-    }
-    if (contains(options, "ondemandDash")) {
+    std::string hls = extractLink(options, "ondemandHls");
+    if (!hls.empty()) return hlsVideos(hls, "", namePrefix);
+    std::string hlsMaster = extractLink(options, "hlsManifestUrl");
+    if (!hlsMaster.empty()) return hlsVideos(hlsMaster, "", namePrefix);
+    std::string dash = extractLink(options, "ondemandDash");
+    if (!dash.empty()) {
         Video v;
-        v.url = extractLink(options, "ondemandDash");
+        v.url = dash;
         v.title = namePrefix + "DASH";
         return {v};
     }
@@ -466,7 +508,8 @@ std::vector<Video> dailymotion(const std::string& url, const std::string& titleP
     return hlsVideos(masterUrl, dm + "/", titlePrefix, subs);
 }
 
-// ---- Rumble (lib/rumbleextractor)
+// ---- Rumble: il vecchio /hls-vod/<id>/playlist.m3u8 dell'estensione ora restituisce una playlist vuota;
+// si usa l'API del lettore incorporato (embedJS), che elenca i file MP4 per qualita' (e l'HLS se presente).
 std::vector<Video> rumble(const std::string& url, const std::string& prefix) {
     auto p = url.find("rumble.com/embed/v");
     if (p == std::string::npos) return {};
@@ -474,7 +517,41 @@ std::vector<Video> rumble(const std::string& url, const std::string& prefix) {
     while (e < url.size() && std::isalnum((unsigned char)url[e])) e++;
     if (e == s) return {};
     std::string id = url.substr(s, e - s);
-    return hlsVideos("https://rumble.com/hls-vod/" + id + "/playlist.m3u8", url, prefix + "Rumble - ");
+    std::vector<Video> out;
+    try {
+        json j = json::parse(http::getText("https://rumble.com/embedJS/u3/?request=video&ver=2&v=v" + id,
+                                           {{"Referer", url}}));
+        if (j.contains("ua") && j["ua"].is_object()) {
+            for (const char* kind : {"mp4", "webm"}) {
+                if (!j["ua"].contains(kind) || !j["ua"][kind].is_object()) continue;
+                for (auto it = j["ua"][kind].begin(); it != j["ua"][kind].end(); ++it) {
+                    std::string link = it.value().is_string() ? it.value().get<std::string>()
+                                     : it.value().is_object() ? it.value().value("url", "") : "";
+                    if (link.empty()) continue;
+                    Video v;
+                    v.url = link;
+                    v.quality = std::atoi(it.key().c_str());
+                    v.title = prefix + "Rumble - " + (v.quality > 0 ? it.key() + "p" : it.key());
+                    v.referer = "https://rumble.com/";
+                    out.push_back(v);
+                }
+            }
+            if (j["ua"].contains("hls") && j["ua"]["hls"].is_object()) {
+                for (auto it = j["ua"]["hls"].begin(); it != j["ua"]["hls"].end(); ++it) {
+                    std::string link = it.value().is_string() ? it.value().get<std::string>()
+                                     : it.value().is_object() ? it.value().value("url", "") : "";
+                    if (!link.empty()) {
+                        auto hv = hlsVideos(link, "https://rumble.com/", prefix + "Rumble - ");
+                        out.insert(out.end(), hv.begin(), hv.end());
+                        break;
+                    }
+                }
+            }
+        }
+    } catch (const std::exception&) {
+    }
+    std::sort(out.begin(), out.end(), [](const Video& a, const Video& b) { return a.quality > b.quality; });
+    return out;
 }
 
 // ---- StreamPlay (lib/streamplayextractor)
