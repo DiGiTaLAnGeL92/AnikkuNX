@@ -30,6 +30,7 @@ int main(int argc, char* argv[]) {
     http::globalInit("resources/cacert.pem");
 #endif
     Config::instance().load();
+    Config::instance().checkPreviousCrash();
     Config::instance().save();  // crea la cartella dati se manca
     Config::instance().applyDomains();
     api::init(Config::instance().configDir());

@@ -157,5 +157,9 @@
   "Ucraino": "ウクライナ語",
   "Hindi": "ヒンディー語",
   "Giapponese": "日本語",
-  "Lo stream si e' interrotto (segmenti non leggibili)": "ストリームが中断しました（読み込めないセグメント）"
+  "Lo stream si e' interrotto (segmenti non leggibili)": "ストリームが中断しました（読み込めないセグメント）",
+  "L'app si e' chiusa durante la riproduzione. Per sicurezza ho disattivato i font dei sottotitoli (Impostazioni > Riproduzione). Se non succede piu', era quella la causa.": "再生中にアプリが終了しました。念のため字幕フォントを無効にしました（設定 > 再生）。再発しなければ、それが原因です。",
+  "L'app si e' chiusa di nuovo durante la riproduzione. Ho disattivato anche il proxy per gli stream camuffati (Impostazioni > Riproduzione).": "再生中にアプリが再び終了しました。偽装ストリーム用のプロキシも無効にしました（設定 > 再生）。",
+  "Sottotitoli con i font della console": "本体のフォントで字幕を表示",
+  "Ripara gli stream con segmenti camuffati (proxy locale)": "偽装セグメントのストリームを修復（ローカルプロキシ）"
 }

@@ -821,6 +821,48 @@ std::vector<Video> resolveHost(const std::string& rawUrl, const std::string& pre
     return {};
 }
 
+/**
+ * Estrattore generico "best effort" per hoster sconosciuti: cerca nella pagina (anche negli script
+ * impacchettati con p,a,c,k,e,d) il primo URL .m3u8 o .mp4 tra virgolette.
+ */
+std::vector<Video> genericVideos(const std::string& url, const std::string& name) {
+    if (contains(url, "#")) return {};  // lettori basati su API/JS (upns, rpmplay...): non supportati
+    std::string origin = http::originOf(url);
+    http::Response r = http::request("GET", url, {{"Referer", origin + "/"}});
+    if (r.status < 200 || r.status >= 300) return {};
+    std::string text = r.body;
+    if (text.size() > 4 * 1024 * 1024) return {};
+    if (contains(text, "eval(function(p,a,c,k,e")) {
+        html::Document doc(r.body, url);
+        std::string packed = scriptWith(doc, {"eval(function(p,a,c,k,e"});
+        if (!packed.empty()) text += "\n" + unpacker::unpackAndCombine(packed);
+    }
+    std::string pageUrl = r.finalUrl.empty() ? url : r.finalUrl;
+    for (char q : {'"', '\''}) {
+        for (auto& u : quotedUrls(text, ".m3u8", q)) {
+            auto v = hlsVideos(fixUrl(u), pageUrl, name + " - ");
+            if (!v.empty()) return v;
+        }
+    }
+    for (char q : {'"', '\''})
+        for (auto& u : quotedUrls(text, ".mp4", q)) return {simpleVideo(fixUrl(u), name, pageUrl)};
+    return {};
+}
+
+/** resolveHost e, se l'hoster non e' riconosciuto, i parser jwplayer comuni e quello generico. */
+std::vector<Video> resolveAny(const std::string& url, const std::string& prefix, const std::string& siteUrl = "") {
+    auto v = resolveHost(url, prefix, siteUrl);
+    if (!v.empty() || contains(url, "#")) return v;
+    std::string host = http::hostOf(url);
+    try {
+        v = streamWish(url, prefix + host + " - ");
+        if (v.empty()) v = vidHide(url, prefix + host + " - ");
+        if (v.empty()) v = genericVideos(url, prefix + host);
+    } catch (const std::exception&) {
+    }
+    return v;
+}
+
 std::vector<Video> ensureVideos(std::vector<Video> v) {
     if (v.empty()) throw http::Error("Nessun video trovato");
     return v;
@@ -891,9 +933,17 @@ class FdSource : public Source {
         return std::move(r.body);
     }
 
+    /** POST di un form; sui redirect (es. vostfree.ws -> ipv4.vostfree.ws) ripete il POST invece di passare a GET. */
     std::string postForm(const std::string& url, const std::string& body, const http::Headers& extra = {}) const {
         http::Headers h = mergeHeaders({{"Content-Type", "application/x-www-form-urlencoded"}}, extra);
-        http::Response r = req("POST", url, h, body);
+        std::string target = url;
+        http::Response r;
+        for (int i = 0; i < 4; i++) {
+            r = req("POST", target, h, body, false);
+            std::string loc = r.header("location");
+            if (r.status < 300 || r.status >= 400 || loc.empty()) break;
+            target = http::resolve(target, trim(loc));
+        }
         check(r);
         return std::move(r.body);
     }
@@ -3003,7 +3053,7 @@ class FilmPalast : public FdSource {
                 if (contains(url, "voe")) append(out, voe(url, ""));
                 else if (contains(url, "streamtape")) append(out, streamtape(url, ""));
                 else if (contains(url, "wolfstream")) append(out, wolfstream(url, ""));
-                // evoload: servizio chiuso, non supportato
+                else if (!contains(url, "evoload")) append(out, resolveAny(url, "", baseUrl()));  // Vidara, Vixeo, Hxfile...
             } catch (const std::exception&) {
             }
         }
@@ -3117,12 +3167,12 @@ class MoflixStream : public FdSource {
             std::string name = jv(v, "name", ""), src = jv(v, "src", "");
             if (src.empty()) continue;
             try {
-                if (contains(name, "Streamtape")) append(out, streamtape(src, ""));
-                else if (contains(name, "Streamvid")) append(out, vidHide(src, ""));
+                // i server ora si chiamano "Mirror N": si riconosce l'hoster dall'URL
+                if (contains(name, "Streamtape") || containsCI(src, "streamtape")) append(out, streamtape(src, ""));
                 else if (contains(name, "Highstream")) append(out, vidHide(src, "Highstream - "));
-                else if (contains(name, "Filelions")) append(out, streamWish(src, "FileLions - "));
                 else if (contains(name, "LuluStream")) append(out, unpackerHls(src, "LuluStream"));
-                // VidGuard: richiede un motore JS, non supportato
+                else if (containsCI(src, "veev.to") || containsCI(src, "vembed")) continue;  // veev/VidGuard: JS, non supportati
+                else append(out, resolveAny(src, name + " - ", baseUrl()));
             } catch (const std::exception&) {
             }
         }

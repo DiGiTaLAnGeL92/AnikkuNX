@@ -395,6 +395,26 @@ std::vector<Video> gdrivePlayer(const std::string& url, const std::string& name,
             }
         }
     }
+    // formato attuale (2026): (function(){var k="...",b=atob("...");... o+=chr(b[i]^k[i%k.length]); eval(o)})
+    // con dentro HLS="hlsplaylist.php?..." relativo al player
+    for (size_t kp = 0; (kp = body.find("var k=\"", kp)) != std::string::npos;) {
+        kp += 7;
+        size_t ke = body.find('"', kp);
+        if (ke == std::string::npos) break;
+        std::string key = body.substr(kp, ke - kp);
+        size_t bp = body.find("atob(\"", ke);
+        if (bp == std::string::npos || bp - ke > 16) continue;
+        bp += 6;
+        size_t be = body.find('"', bp);
+        if (be == std::string::npos || key.empty()) break;
+        std::string data = base64Decode(replaceAll(body.substr(bp, be - bp), "\\/", "/"));
+        for (size_t i = 0; i < data.size(); i++) data[i] = (char)(data[i] ^ key[i % key.size()]);
+        std::string hls = substringBefore(substringAfter(data, "HLS=\""), "\"");
+        if (!contains(data, "HLS=\"") || hls.empty()) continue;
+        std::string master = http::resolve(newUrl, replaceAll(hls, "\\/", "/"));
+        auto v = hlsVideos(master, "https://" + http::hostOf(newUrl) + "/", "GDRIVE - " + name + " - ", subs);
+        if (!v.empty()) return v;
+    }
     std::string eval = replaceAll(unpacker::unpackAndCombine(body), "\\", "");
     if (eval.empty()) return {};
     auto dp = eval.find("data=\"");
@@ -651,6 +671,62 @@ std::vector<Video> anidrive(const std::string& url, const std::string& serverNam
     return {};  // WebView non disponibile
 }
 
+/** Stringhe tra virgolette (" o ') che iniziano con http(s) o // e contengono "needle". */
+std::vector<std::string> quotedUrls(const std::string& text, const std::string& needle) {
+    std::vector<std::string> out;
+    for (char q : {'"', '\''}) {
+        size_t pos = 0;
+        while ((pos = text.find(q, pos)) != std::string::npos) {
+            size_t end = text.find(q, pos + 1);
+            if (end == std::string::npos) break;
+            std::string c = text.substr(pos + 1, end - pos - 1);
+            if (c.size() < 2048 && (startsWith(c, "http") || startsWith(c, "//")) && contains(c, needle)) {
+                c = replaceAll(c, "\\/", "/");
+                if (startsWith(c, "//")) c = "https:" + c;
+                if (std::find(out.begin(), out.end(), c) == out.end()) out.push_back(c);
+                pos = end + 1;
+            } else {
+                pos++;
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * Pagina di embed generica (emturbovid/strmup, player "VİP" di AsyaAnimeleri...): cerca una playlist .m3u8
+ * o un .mp4 nel sorgente (anche dentro script p,a,c,k,e,d).
+ */
+std::vector<Video> embedPage(const std::string& url, const std::string& referer, const std::string& title) {
+    http::Headers h;
+    if (!referer.empty()) h.push_back({"Referer", referer});
+    http::Response r = http::request("GET", url, h);
+    if (r.status < 200 || r.status >= 300) return {};
+    std::string text = r.body;
+    if (contains(text, "eval(function(p,a,c,k,e,d)")) text += "\n" + unpacker::unpackAndCombine(r.body);
+    // attributi tipo data-hash="https://...m3u8"
+    html::Document doc(r.body, url);
+    for (auto& n : doc.select("[data-hash]")) text += "\n\"" + n.attr("data-hash") + "\"";
+    for (auto& n : doc.select("source[src]")) text += "\n\"" + doc.absUrl(n, "src") + "\"";
+    std::string pageUrl = r.finalUrl.empty() ? url : r.finalUrl;
+    for (auto& m : quotedUrls(text, ".m3u8")) {
+        auto v = hlsVideos(m, pageUrl, title + " - ");
+        if (!v.empty()) return v;
+    }
+    std::vector<Video> out;
+    for (auto& m : quotedUrls(text, ".mp4")) out.push_back(simpleVideo(m, title, pageUrl));
+    return out;
+}
+
+/** https://host/e/<id>/<slug> -> https://host/e/<id> (MoonExtractor usa l'ultimo segmento come id). */
+std::string byseUrl(const std::string& url) {
+    auto p = url.find("/e/");
+    if (p == std::string::npos) p = url.find("/d/");
+    if (p == std::string::npos) return url;
+    std::string id = substringBefore(substringBefore(substringBefore(url.substr(p + 3), "/"), "?"), "#");
+    return url.substr(0, p + 3) + id;
+}
+
 // ---- SmartAnimes / soralink (pt/smartanimes/extractors/SmartAnimesExtractor)
 std::vector<Video> soralink(const std::string& url, const std::string& name, const http::Headers& headers) {
     std::string content = http::getText(url, headers);
@@ -782,9 +858,23 @@ class AnimeStream : public Source {
         }
         std::string p = std::to_string(page);
         if (info.site == Site::AnimeIndo) {
-            std::string url = baseUrl() + "/browse?page=" + p;
-            if (!query.empty()) url += "&title=" + http::urlEncode(query);
-            return listPage(url, "");
+            // il sito (2026, Laravel/Livewire) non ha piu' "?title=": la ricerca del modale e' solo Livewire.
+            // Si prova la rotta /search/<q>, poi /browse?search=<q>.
+            if (query.empty()) return listPage(baseUrl() + "/browse?page=" + p, "");
+            try {
+                Page r = listPage(baseUrl() + "/search/" + http::urlEncode(query) + "?page=" + p, "");
+                if (!r.animes.empty()) return r;
+            } catch (const std::exception&) {
+            }
+            return listPage(baseUrl() + "/browse?search=" + http::urlEncode(query) + "&page=" + p, "");
+        }
+        if (info.site == Site::AnimeIto && !query.empty()) {
+            // "/?s=" e' dietro la verifica Cloudflare: si ripiega sull'API REST di WordPress (tipo "anime")
+            try {
+                return listPage(baseUrl() + "/page/" + p + "/?s=" + http::urlEncode(query), searchNextSelector());
+            } catch (const std::exception&) {
+                return wpSearch(query, page);
+            }
         }
         if (info.site == Site::TRAnimeCI)
             return listPage(animeListUrl() + (query.empty() ? "" : "?name=" + http::urlEncode(query)), "");
@@ -806,6 +896,7 @@ class AnimeStream : public Source {
     Details details(const std::string& animeUrl) override {
         std::string pageUrl = absolute(animeUrl);
         html::Document doc(fetch(pageUrl), pageUrl);
+        if (info.site == Site::AnimeIndo) return animeIndoDetails(doc, animeUrl);
         Details d;
         d.title = doc.selectFirst(info.site == Site::TRAnimeCI ? ".entry-title" : "h1.entry-title").text();
         if (info.site == Site::MiniOppai) d.title = trim(substringBefore(substringBefore(d.title, "Episode"), " OVA "));
@@ -864,6 +955,8 @@ class AnimeStream : public Source {
         std::vector<Video> out;
         if (info.site == Site::TRAnimeCI) {
             out = trVideos(doc);
+        } else if (info.site == Site::AnimeIndo) {
+            out = animeIndoVideos(doc);
         } else if (info.site == Site::SmartAnimes) {
             for (auto& el : doc.select(".dlbox li:not(.head)")) {
                 try {
@@ -954,7 +1047,8 @@ class AnimeStream : public Source {
         switch (info.site) {
             case Site::MiniOppai:
             case Site::Anikyuu: return {{"Referer", baseUrl()}};
-            case Site::TRAnimeCI: return {{"Referer", baseUrl() + "/"}};
+            case Site::TRAnimeCI:
+            case Site::AnimeIto: return {{"Referer", baseUrl() + "/"}};
             case Site::SmartAnimes:
                 return {{"Accept",
                          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,"
@@ -1029,7 +1123,7 @@ class AnimeStream : public Source {
 
     std::string itemSelector() const {
         switch (info.site) {
-            case Site::AnimeIndo: return "div.animepost > div > a";
+            case Site::AnimeIndo: return "div.animepost > div > a, a.aspect-poster";
             case Site::MiniOppai: return "div.latest article a.tip";
             case Site::TRAnimeCI: return "div.advancedsearch a.tip";
             default: return "div.listupd article a.tip";
@@ -1051,6 +1145,9 @@ class AnimeStream : public Source {
         an.url = http::pathOf(doc.absUrl(a, "href"));
         if (info.site == Site::AnimeIndo) {
             an.title = a.selectFirst("div.title").text();
+            // tema 2026: <div class="relative group"><a class="aspect-poster">...</a><div class="pt-4"><h3>titolo</h3>
+            if (an.title.empty()) an.title = trim(a.parent().selectFirst("h3").text());
+            if (an.title.empty()) an.title = trim(a.selectFirst("img").attr("alt"));
         } else if (info.site == Site::MiniOppai) {
             an.title = ownText(a.selectFirst("h2.entry-title"));
         } else {
@@ -1075,10 +1172,118 @@ class AnimeStream : public Source {
             // "div.pagination a:has(i#nextpagination)"
             for (auto& a : doc.select("div.pagination a"))
                 if (a.selectFirst("i#nextpagination").valid()) p.hasNextPage = true;
+            if (doc.selectFirst("[dusk=nextPage]").valid()) p.hasNextPage = true;  // paginazione Livewire
         } else if (!nextSelector.empty()) {
             p.hasNextPage = doc.selectFirst(nextSelector).valid();
         }
         return p;
+    }
+
+    /** Ricerca tramite /wp-json/wp/v2/anime (Animeito, quando "/?s=" e' bloccato da Cloudflare). */
+    Page wpSearch(const std::string& query, int page) {
+        std::string url = baseUrl() + "/wp-json/wp/v2/anime?search=" + http::urlEncode(query) + "&per_page=20&page=" +
+                          std::to_string(page) + "&_embed=wp:featuredmedia";
+        http::Headers h = siteHeaders();
+        h.push_back({"Accept", "application/json"});
+        http::Response r = http::request("GET", url, h);
+        Page p;
+        if (r.status == 400) return p;  // pagina oltre l'ultima
+        if (r.status < 200 || r.status >= 300) throw http::Error("Ricerca non disponibile (HTTP " + std::to_string(r.status) + ")");
+        json arr = json::parse(r.body, nullptr, false);
+        if (!arr.is_array()) return p;
+        for (auto& it : arr) {
+            if (!it.is_object()) continue;
+            Anime an;
+            an.url = http::pathOf(jstr(it, "link"));
+            if (it.contains("title") && it["title"].is_object()) {
+                html::Document t("<p>" + jstr(it["title"], "rendered") + "</p>");
+                an.title = t.selectFirst("p").text();
+            }
+            try {
+                an.thumbnail = it.at("_embedded").at("wp:featuredmedia").at(0).value("source_url", "");
+            } catch (const std::exception&) {
+            }
+            if (!an.url.empty() && !an.title.empty()) p.animes.push_back(an);
+        }
+        p.hasNextPage = std::atoi(r.header("x-wp-totalpages").c_str()) > page;
+        return p;
+    }
+
+    /**
+     * AnimeIndo (2026): tema Laravel/Livewire (percorsi /movie/<slug> e /tv-show/<slug>). Le pagine di dettaglio e di
+     * episodio non erano nei dump del test: parsing generico (titolo h1/og:title, og:image, link agli episodi).
+     */
+    Details animeIndoDetails(const html::Document& doc, const std::string& animeUrl) {
+        Details d;
+        auto meta = [&](const char* sel) { return trim(doc.selectFirst(sel).attr("content")); };
+        d.title = trim(doc.selectFirst("h1").text());
+        if (d.title.empty()) d.title = substringBefore(meta("meta[property=og:title]"), " - ");
+        if (d.title.empty()) throw http::Error("Pagina dell'anime non valida");
+        d.thumbnail = meta("meta[property=og:image]");
+        html::Node poster = doc.selectFirst("picture img[data-src], img.lazyload[data-src]");
+        if (d.thumbnail.empty() && poster) d.thumbnail = doc.absUrl(poster, "data-src");
+        d.description = meta("meta[property=og:description]");
+        if (d.description.empty()) d.description = meta("meta[name=description]");
+        std::vector<std::string> genres;
+        for (auto& a : doc.select("a[href*=/genre/]")) {
+            std::string g = trim(a.text());
+            if (!g.empty() && std::find(genres.begin(), genres.end(), g) == genres.end()) genres.push_back(g);
+        }
+        for (auto& g : genres) d.genre += (d.genre.empty() ? "" : ", ") + g;
+        // episodi: link sotto il percorso della serie o con "episode" nel percorso
+        std::string base = http::pathOf(absolute(animeUrl));
+        while (!base.empty() && base.back() == '/') base.pop_back();
+        std::set<std::string> seen;
+        for (auto& a : doc.select("a[href]")) {
+            std::string path = http::pathOf(doc.absUrl(a, "href"));
+            if (http::hostOf(doc.absUrl(a, "href")) != http::hostOf(baseUrl())) continue;
+            bool isEp = (startsWith(path, base + "/") && path.size() > base.size() + 1) || containsCI(path, "/episode");
+            if (!isEp || !seen.insert(path).second) continue;
+            Episode e;
+            e.url = path;
+            std::string t = trim(a.text());
+            // numero: ultima sequenza di cifre nel percorso (es. .../season-1/episode-12)
+            std::string digits;
+            for (size_t i = path.size(); i-- > 0;) {
+                if (std::isdigit((unsigned char)path[i])) digits.insert(digits.begin(), path[i]);
+                else if (!digits.empty()) break;
+            }
+            e.number = digits.empty() ? -1 : std::atof(digits.c_str());
+            e.name = !t.empty() && t.size() < 80 ? t : "Episode " + (digits.empty() ? path : digits);
+            d.episodes.push_back(e);
+        }
+        std::stable_sort(d.episodes.begin(), d.episodes.end(), [](const Episode& a, const Episode& b) { return a.number > b.number; });
+        if (d.episodes.empty()) d.episodes.push_back({http::pathOf(absolute(animeUrl)), "Movie", 1});
+        return d;
+    }
+
+    std::vector<Video> animeIndoVideos(const html::Document& doc) {
+        std::vector<std::string> urls;
+        auto add = [&](std::string u) {
+            u = trim(u);
+            if (startsWith(u, "//")) u = "https:" + u;
+            if (!startsWith(u, "http") || http::hostOf(u) == http::hostOf(baseUrl())) return;
+            if (std::find(urls.begin(), urls.end(), u) == urls.end()) urls.push_back(u);
+        };
+        for (auto& f : doc.select("iframe")) {
+            add(f.attr("src"));
+            add(f.attr("data-src"));
+        }
+        for (auto& n : doc.select("[data-embed]")) add(n.attr("data-embed"));
+        // lettori caricati da Livewire: URL degli hoster nel sorgente (wire:snapshot / script)
+        std::string raw;
+        for (auto& n : doc.select("[wire:snapshot]")) raw += n.attr("wire:snapshot") + "\n";
+        for (auto& s : doc.select("script")) raw += s.data() + "\n";
+        for (auto& u : quotedUrls(raw, "/e/")) add(u);
+        for (auto& u : quotedUrls(raw, "embed")) add(u);
+        std::vector<Video> out;
+        for (auto& u : urls) {
+            try {
+                append(out, getVideoList(u, http::hostOf(u)));
+            } catch (const std::exception&) {
+            }
+        }
+        return out;
     }
 
     /** Blocchi "div.releases" il cui testo contiene la stringa indicata. */
@@ -1409,7 +1614,7 @@ class AnimeStream : public Source {
                     std::string gdriveUrl = contains(url, site) ? "https:" + http::queryParam(url, "data") : url;
                     return gdrivePlayer(gdriveUrl, "Gdrive", siteHeaders());
                 }
-                return {};
+                return extraHoster(url, prefix);
             case Site::MiniOppai:
                 if (contains(url, "gdriveplayer")) {
                     std::string data = http::queryParam(url, "data");
@@ -1430,19 +1635,27 @@ class AnimeStream : public Source {
                 }
                 return {};
             case Site::AsyaAnimeleri: {
+                // i nomi reali sono "VİP", "Gdrive", "SİBNET", "Vidmoly" (İ turca: lower() ASCII non la converte),
+                // quindi si riconosce l'hoster soprattutto dall'URL
                 std::string n = lower(trim(name));
-                if (n == "vk") return vk(url, prefix);
-                if (n == "ok.ru") return okru(url, prefix);
-                if (n == "sibnet") return sibnet(url, prefix);
+                std::string u = lower(url);
+                if (n == "vk" || contains(u, "vk.com") || contains(u, "vkvideo")) return vk(url, prefix);
+                if (n == "ok.ru" || contains(u, "ok.ru")) return okru(url, prefix);
+                if (n == "sibnet" || contains(u, "sibnet")) return sibnet(url, prefix);
                 if (n == "dood" || n == "doodstream") return dood(url, prefix);
-                if (n == "gdrive") return gdrivePlayer("https://gdriveplayer.to/embed2.php?link=" + url, "Gdrive", {});
-                return {};
+                if (n == "gdrive" || contains(u, "drive.google.com"))
+                    return gdrivePlayer("https://gdriveplayer.to/embed2.php?link=" + url, "Gdrive", {});
+                if (contains(u, "asyaanimeleri.")) return embedPage(url, site + "/", name);  // player "VİP"
+                return extraHoster(url, prefix);
             }
             case Site::Anikyuu:
                 // filemoon e byse usano la stessa API "embed/playback" (MoonExtractor condiviso)
-                if (contains(url, "filemoon")) return moon(url, site, "Filemoon - ");
+                // l'id per l'API e' il segmento dopo /e/ (gli URL reali sono /e/<id>/<slug>)
+                if (contains(url, "filemoon")) return moon(byseUrl(url), site, "Filemoon - ");
                 if (contains(url, "strmup.to")) return strmup(url, siteHeaders());
-                if (contains(url, "byselapuix.com")) return moon(url, site, "Byse - ");
+                if (contains(url, "byse")) return moon(byseUrl(url), site, "Byse - ");
+                if (contains(url, "emturbovid") || contains(url, "turbovid")) return embedPage(url, site + "/", "Strmup");
+                // anikyuup2p.site/#id, 4meplayer.pro/#id, ezplayer.me/#id: lettori JS (id nel frammento), non supportati
                 return {};
             case Site::AnimeIto:
                 if (contains(url, "anidrive.click")) return anidrive(url, trim(name), siteHeaders());
@@ -1529,7 +1742,7 @@ std::vector<std::shared_ptr<Source>> makeAnimeStreamSources() {
         {Site::AnimeXin, "all.animexin", "AnimeXin", "https://animexin.dev", "all", false},
         {Site::ChineseAnime, "all.chineseanime", "ChineseAnime", "https://www.chineseanime.in", "all", false},
         {Site::LMAnime, "all.lmanime", "LMAnime", "https://lmanime.com", "all", false},
-        {Site::DesuOnline, "pl.desuonline", "desu-online", "https://desu-online.pl", "pl", false},
+        // pl.desuonline: sito chiuso il 31/08/2026 (ogni pagina mostra solo l'avviso di chiusura), non esposto
         {Site::AnimeYTES, "es.animeytes", "AnimeYT.es", "https://animeyt.es", "es", false},
         {Site::Tiodonghua, "es.tiodonghua", "Tiodonghua.com", "https://anime.tiodonghua.com", "es", false},
         {Site::MyKdrama, "fr.mykdrama", "MyKdrama", "https://mykdrama.co", "fr", false},

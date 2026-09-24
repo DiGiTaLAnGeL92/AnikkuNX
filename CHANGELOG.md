@@ -3,6 +3,11 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.5.5
+
+- Corretto il crash all'apertura dei video con sottotitoli: il player carica solo il font della console che serve
+- Se l'app si chiude durante la riproduzione, al riavvio disattiva da sola i font dei sottotitoli (e poi il proxy degli stream) e lo spiega; si riattivano in Impostazioni > Riproduzione
+
 ## 0.5.4
 
 - Nuovo pulsante nel player per la velocità di riproduzione: 1x, 1.5x, 2x (anche con ZR)

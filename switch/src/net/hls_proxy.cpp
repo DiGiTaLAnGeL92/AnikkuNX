@@ -140,8 +140,20 @@ void reply(int fd, int status, const std::string& type, const std::string& body,
     if (!headOnly) sendAll(fd, body);
 }
 
+void handleClientImpl(int fd);
+
 void handleClient(int fd) {
     activeClients++;
+    try {
+        handleClientImpl(fd);
+    } catch (...) {
+    }
+    shutdown(fd, SHUT_RDWR);
+    close(fd);
+    activeClients--;
+}
+
+void handleClientImpl(int fd) {
     std::string req;
     char buf[4096];
     while (req.find("\r\n\r\n") == std::string::npos && req.size() < 16384) {
@@ -196,9 +208,6 @@ void handleClient(int fd) {
         }
     }
     if (!ok) reply(fd, 404, "text/plain", "not found", headOnly);
-    shutdown(fd, SHUT_RDWR);
-    close(fd);
-    activeClients--;
 }
 
 void serverLoop(int sock) {
@@ -217,7 +226,11 @@ void serverLoop(int sock) {
             close(fd);
             continue;
         }
-        std::thread(handleClient, fd).detach();
+        try {
+            std::thread(handleClient, fd).detach();
+        } catch (...) {  // niente thread disponibili: gestisce la richiesta qui
+            handleClient(fd);
+        }
     }
     close(sock);
 }
@@ -248,7 +261,14 @@ bool ensureServer() {
         serverFailed = true;
         return false;
     }
-    std::thread(serverLoop, sock).detach();
+    try {
+        std::thread(serverLoop, sock).detach();
+    } catch (...) {
+        close(sock);
+        serverPort = 0;
+        serverFailed = true;
+        return false;
+    }
     return true;
 }
 

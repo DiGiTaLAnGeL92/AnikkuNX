@@ -31,5 +31,12 @@ class Config {
     bool checkNewEpisodes = true;   // controlla i nuovi episodi della libreria all'avvio
     std::string skippedVersion;     // versione che l'utente ha scelto di saltare
     bool autoSkipOpening = false;
+    bool subtitleFonts = true;  // font della console per i sottotitoli (libass)
+    bool hlsProxy = true;       // proxy locale per i segmenti HLS camuffati da immagine
+    /** Messaggio da mostrare all'avvio se il player si era chiuso in modo anomalo ("" se nessuno). */
+    std::string crashNotice;
+    /** Il player segna qui l'inizio/la fine della riproduzione: se all'avvio il segno c'e', l'app era crashata. */
+    void markPlaying(bool playing);
+    void checkPreviousCrash();
     int seekSeconds = 10;
 };

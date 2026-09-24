@@ -3,6 +3,7 @@
 
 #include <clocale>
 #include <cstring>
+#include <vector>
 
 #ifdef BOREALIS_USE_OPENGL
 #include <glad/glad.h>
@@ -34,17 +35,17 @@ static std::string prepareSubtitleFonts() {
     mkdir(dir.c_str(), 0777);
     mkdir((dir + "/fonts").c_str(), 0777);
 #ifdef __SWITCH__
+    // Solo i font che servono: latino/europeo sempre, piu' quello CJK della lingua della console
+    // (come fa Switchfin). I font "Ext" di Nintendo non servono ai sottotitoli e sono esclusi.
     struct Item {
         PlSharedFontType type;
         const char* name;
-    } items[] = {
-        {PlSharedFontType_Standard, "standard.ttf"},
-        {PlSharedFontType_ChineseSimplified, "zh-hans.ttf"},
-        {PlSharedFontType_ExtChineseSimplified, "zh-hans-ext.ttf"},
-        {PlSharedFontType_ChineseTraditional, "zh-hant.ttf"},
-        {PlSharedFontType_KO, "ko.ttf"},
-        {PlSharedFontType_NintendoExt, "nintendo-ext.ttf"},
     };
+    std::vector<Item> items = {{PlSharedFontType_Standard, "standard.ttf"}};
+    std::string loc = brls::Application::getPlatform()->getLocale();
+    if (loc == brls::LOCALE_ZH_HANS) items.push_back({PlSharedFontType_ChineseSimplified, "zh-hans.ttf"});
+    else if (loc == brls::LOCALE_ZH_HANT) items.push_back({PlSharedFontType_ChineseTraditional, "zh-hant.ttf"});
+    else if (loc == brls::LOCALE_Ko) items.push_back({PlSharedFontType_KO, "ko.ttf"});
     auto writeFile = [](const std::string& path, const void* data, size_t size) {
         struct stat st;
         if (stat(path.c_str(), &st) == 0 && (size_t)st.st_size == size) return;
@@ -53,6 +54,13 @@ static std::string prepareSubtitleFonts() {
         fwrite(data, 1, size, f);
         fclose(f);
     };
+    // font di versioni precedenti (troppi e pesanti): vengono tolti dalla cartella caricata da libass
+    for (const char* old : {"zh-hans.ttf", "zh-hans-ext.ttf", "zh-hant.ttf", "ko.ttf", "nintendo-ext.ttf"}) {
+        bool wanted = false;
+        for (auto& it : items)
+            if (strcmp(it.name, old) == 0) wanted = true;
+        if (!wanted) remove((dir + "/fonts/" + old).c_str());
+    }
     for (auto& it : items) {
         PlFontData font;
         if (R_FAILED(plGetSharedFontByType(&font, it.type)) || !font.address || !font.size) continue;
@@ -101,7 +109,7 @@ MpvView::MpvView() {
     mpv_set_option_string(mpv, "slang", "it,ita,Italian,Italiano,en,eng");
     mpv_set_option_string(mpv, "alang", "ja,jpn,it,ita");
     mpv_set_option_string(mpv, "sub-font-size", "46");
-    {
+    if (Config::instance().subtitleFonts) {
         std::string fontDir = prepareSubtitleFonts();
         mpv_set_option_string(mpv, "config", "yes");  // serve perche' mpv cerchi ~~/subfont.ttf
         mpv_set_option_string(mpv, "config-dir", fontDir.c_str());

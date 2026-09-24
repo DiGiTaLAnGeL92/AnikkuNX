@@ -326,6 +326,22 @@ const json& jget(const json& j, const char* key) {
 
 json parseJson(const std::string& s) { return json::parse(s, nullptr, false); }
 
+/** Percent-encoding di spazi e byte non ASCII (URL con coreano/cirillico/cinese grezzi: curl li rifiuta). */
+std::string encodeUrl(const std::string& url) {
+    static const char* hex = "0123456789ABCDEF";
+    std::string out;
+    for (unsigned char c : url) {
+        if (c >= 0x80 || c == ' ' || c == '"' || c == '<' || c == '>' || c == '`' || c == '{' || c == '}' || c == '|') {
+            out += '%';
+            out += hex[c >> 4];
+            out += hex[c & 15];
+        } else {
+            out += (char)c;
+        }
+    }
+    return out;
+}
+
 /** Primo valore dell'attributo src="..." / src='...' in un frammento HTML breve (srcRegex). */
 std::string srcAttr(const std::string& html) {
     size_t p = 0;
@@ -624,7 +640,7 @@ class AsiaSource : public Source {
 
     http::Response req(const std::string& method, const std::string& url, const http::Headers& extra = {},
                        const std::string& body = "", bool follow = true) const {
-        return http::request(method, url, mergeHeaders(baseHeaders(), extra), body, 30, follow);
+        return http::request(method, encodeUrl(url), mergeHeaders(baseHeaders(), extra), body, 30, follow);
     }
 
     void check(const http::Response& r) const {
@@ -983,7 +999,11 @@ class AnimposxSource : public AsiaSource {
             } catch (const std::exception&) {
             }
         }
-        preferFirst(out, cfg.samehadaku ? "720p" : "720p");
+        preferFirst(out, "720p");
+        // Krakenfiles e Wibufile sono spesso irraggiungibili (timeout nei test): in fondo alla lista
+        std::stable_partition(out.begin(), out.end(), [](const Video& v) {
+            return !containsCI(v.url, "krakencloud") && !containsCI(v.url, "wibufile") && !containsCI(v.title, "kraken");
+        });
         return ensure(out);
     }
 
@@ -1538,9 +1558,17 @@ class Anime1 : public AsiaSource {
         {
             std::lock_guard<std::mutex> lock(mtx);
             if (!data.is_array()) {
-                std::string body = fetch("https://d1zquzjgwo9yb.cloudfront.net/?_=" + std::to_string((long long)std::time(nullptr)) + "000");
-                data = parseJson(body);
-                if (!data.is_array()) throw http::Error("Elenco di Anime1 non valido");
+                try {
+                    std::string body = fetch("https://d1zquzjgwo9yb.cloudfront.net/?_=" + std::to_string((long long)std::time(nullptr)) + "000");
+                    data = parseJson(body);
+                } catch (const std::exception&) {
+                    data = json();
+                }
+            }
+            if (!data.is_array()) {
+                // il CDN dell'elenco non e' raggiungibile da alcune reti: si ripiega sulla home (episodi recenti)
+                if (page > 1) return Page();
+                return homeFallback();
             }
             items = data;
         }
@@ -1592,6 +1620,20 @@ class Anime1 : public AsiaSource {
     Details details(const std::string& url) override {
         std::string pageUrl = abs(url);
         auto d = doc(pageUrl);
+        // pagina di un singolo episodio: il link "全集連結" porta alla categoria con tutti gli episodi
+        if (!d->selectFirst("h1.page-title")) {
+            for (auto& a : d->select(".entry-content a[href]")) {
+                std::string h = a.attr("href");
+                if (contains(h, "?cat=") || contains(h, "/category/")) {
+                    try {
+                        pageUrl = abs(h);
+                        d = doc(pageUrl);
+                    } catch (const std::exception&) {
+                    }
+                    break;
+                }
+            }
+        }
         Details det;
         det.thumbnail = FIX_COVER;
         det.title = d->selectFirst("h1.page-title").text();
@@ -1623,7 +1665,16 @@ class Anime1 : public AsiaSource {
 
     std::vector<Video> videos(const std::string& episodeUrl) override {
         auto d = doc(abs(episodeUrl));
-        std::string apireq = d->selectFirst("video").attr("data-apireq");
+        std::string apireq = d->selectFirst("video[data-apireq]").attr("data-apireq");
+        if (apireq.empty()) {
+            // episodi vecchi: pulsante "開啟播放器" che apre il lettore https://ipp.anime1.me/<id>
+            std::string player = d->selectFirst("button.loadvideo").attr("data-src");
+            if (!player.empty()) {
+                player = fixUrl(player);
+                html::Document pd(fetch(player), player);
+                apireq = pd.selectFirst("video[data-apireq]").attr("data-apireq");
+            }
+        }
         if (apireq.empty()) throw http::Error("Video non trovato");
         http::Response r = http::request("POST", "https://v.anime1.me/api",
                                          {{"Content-Type", "application/x-www-form-urlencoded"}, {"Referer", baseUrl() + "/"}},
@@ -1646,6 +1697,30 @@ class Anime1 : public AsiaSource {
   private:
     std::mutex mtx;
     json data;
+
+    Page homeFallback() {
+        auto d = doc(baseUrl() + "/");
+        Page p;
+        std::set<std::string> seen;
+        auto add = [&](const std::string& url, std::string title) {
+            // "Titolo [12]" -> "Titolo"
+            auto b = title.rfind(" [");
+            if (b != std::string::npos && endsWith(title, "]")) title = title.substr(0, b);
+            Anime a;
+            a.url = rel(url);
+            a.title = trim(title);
+            a.thumbnail = FIX_COVER;
+            if (!a.url.empty() && !a.title.empty() && seen.insert(a.title).second) p.animes.push_back(a);
+        };
+        for (auto& art : d->select("article.post")) {
+            html::Node cat = art.selectFirst(".cat-links a");
+            html::Node t = art.selectFirst(".entry-title a");
+            std::string url = cat ? cat.attr("href") : t.attr("href");
+            add(url, cat ? cat.text() : t.text());
+        }
+        for (auto& a : d->select("#secondary li > a")) add(a.attr("href"), a.text());
+        return p;
+    }
 };
 
 // ---------------------------------------------------------------------------------------- Xfani (稀饭动漫)
@@ -1742,7 +1817,7 @@ class Xfani : public AsiaSource {
                     videoUrl = macCmsPlayerUrl(*od);
                 }
                 if (!startsWith(videoUrl, "http")) continue;
-                Video v = simpleVideo(videoUrl, title, baseUrl() + "/");
+                Video v = simpleVideo(videoUrl, title);
                 if (endsWith(href, currentPath)) out.insert(out.begin(), v);
                 else out.push_back(v);
             } catch (const std::exception&) {
@@ -1750,7 +1825,7 @@ class Xfani : public AsiaSource {
         }
         if (out.empty()) {
             std::string u = macCmsPlayerUrl(*d);
-            if (startsWith(u, "http")) out.push_back(simpleVideo(u, "稀饭动漫", baseUrl() + "/"));
+            if (startsWith(u, "http")) out.push_back(simpleVideo(u, "稀饭动漫"));
         }
         return ensure(out);
     }
@@ -1903,7 +1978,7 @@ class Cycity : public AsiaSource {
 
     Page vodList(const std::string& by, int page) {
         std::string url = baseUrl() + "/show/20/by/" + by + "/page/" + std::to_string(page) + ".html";
-        http::Response r = req("POST", url, {{"Content-Type", "application/x-www-form-urlencoded"}}, "");
+        http::Response r = req("GET", url);  // il sito ora risponde 405 al POST
         check(r);
         html::Document d(r.body, url);
         Page p;
@@ -2218,7 +2293,7 @@ class Xiaoxintv : public AsiaSource {
         auto d = doc(abs(episodeUrl));
         std::string u = macCmsPlayerUrl(*d);
         if (!startsWith(u, "http")) throw http::Error("Video non trovato");
-        return {simpleVideo(u, "小宝影院", baseUrl() + "/")};
+        return {simpleVideo(u, "小宝影院")};  // come l'estensione: nessun Referer (alcuni CDN rispondono 403)
     }
 
   private:
@@ -2419,7 +2494,7 @@ class Aniweek : public AsiaSource {
         iframeUrl = fixUrl(iframeUrl, postUrl);
         std::string host = http::hostOf(iframeUrl);
 
-        http::Response ir = http::request("GET", iframeUrl,
+        http::Response ir = http::request("GET", encodeUrl(iframeUrl),
                                           {{"Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
                                            {"Referer", baseUrl() + "/"},
                                            {"Sec-Fetch-Dest", "iframe"},
@@ -2497,58 +2572,125 @@ class AnimeSrbija : public AsiaSource {
 
     Page latestPage(int) override {
         auto d = doc(baseUrl());
-        json props = pageProps(*d);
         Page p;
-        for (auto& ep : jget(props, "newEpisodes")) addAnime(p, jget(ep, "anime"));
+        std::set<std::string> seen;
+        for (auto& q : queries(*d)) {
+            if (!contains(q.first, "\"latest\"") && !contains(q.first, "newEpisodes")) continue;
+            for (auto& ep : q.second)
+                if (seen.insert(js(jget(ep, "anime"), "slug")).second) addAnime(p, jget(ep, "anime"));
+        }
+        if (p.animes.empty()) {
+            json props = legacyProps(*d);
+            for (auto& ep : jget(props, "newEpisodes")) addAnime(p, jget(ep, "anime"));
+        }
         return p;
     }
 
     Page search(const std::string& q, int page) override {
         std::string url = baseUrl() + "/filter?page=" + std::to_string(page) + "&sort=popular";
-        if (!trim(q).empty()) url += "&search=" + http::urlEncode(q);
+        if (!trim(q).empty()) url += "&q=" + http::urlEncode(q) + "&search=" + http::urlEncode(q);
         return filterPage(url);
     }
 
     Details details(const std::string& url) override {
         auto d = doc(abs(url));
-        json anime = jget(pageProps(*d), "anime");
+        std::string slug = substringAfterLast(trimChars(substringBefore(url, "?"), "/"), "/");
+        json anime = jget(legacyProps(*d), "anime");
+        auto qs = queries(*d);
+        if (!anime.is_object()) {
+            // App Router: stato React Query nel flusso RSC; si cerca l'oggetto con lo slug dell'anime
+            for (auto& q : qs) {
+                if (isNoise(q.first)) continue;
+                json found = findObj(q.second, [&](const json& o) {
+                    return js(o, "slug") == slug && o.contains("title") && (o.contains("desc") || o.contains("description") || o.contains("genres"));
+                });
+                if (found.is_object()) {
+                    anime = found;
+                    break;
+                }
+            }
+        }
+        if (!anime.is_object()) throw http::Error("Dettagli non trovati");
         Details det;
         det.title = js(anime, "title");
         det.thumbnail = imgUrl(js(anime, "img"));
         std::string st = js(anime, "status");
         det.status = st == "Završeno" ? "Completato" : st == "Emituje se" ? "In corso" : "";
         std::vector<std::string> studios, genres;
-        for (auto& s : jget(anime, "studios"))
-            if (s.is_string()) studios.push_back(s.get<std::string>());
-        for (auto& s : jget(anime, "genres"))
-            if (s.is_string()) genres.push_back(s.get<std::string>());
+        for (auto& s : jget(anime, "studios")) studios.push_back(s.is_string() ? s.get<std::string>() : js(s, "name"));
+        for (auto& s : jget(anime, "genres")) genres.push_back(s.is_string() ? s.get<std::string>() : js(s, "name"));
         det.author = joinStr(studios);
         det.genre = joinStr(genres);
         std::string desc;
         if (!js(anime, "season").empty()) desc += "Sezona: " + js(anime, "season") + "\n";
         if (!js(anime, "aired").empty()) desc += "Datum: " + js(anime, "aired") + "\n";
         if (!js(anime, "subtitle").empty()) desc += "Alternativni naziv: " + js(anime, "subtitle") + "\n";
-        if (!js(anime, "desc").empty()) desc += "\n\n" + js(anime, "desc");
+        std::string text = js(anime, "desc").empty() ? js(anime, "description") : js(anime, "desc");
+        if (!text.empty()) desc += "\n\n" + text;
         det.description = trim(desc);
-        for (auto& ep : jget(anime, "episodes")) {
-            Episode e;
-            e.url = "/epizoda/" + js(ep, "slug");
-            e.number = toNumber(js(ep, "number"), -1);
-            e.name = "Epizoda " + js(ep, "number");
-            if (jget(ep, "filler").is_boolean() && ep["filler"].get<bool>()) e.name += " (filler)";
-            det.episodes.push_back(e);
-        }
+
+        std::set<std::string> seen;
+        auto addEps = [&](const json& arr) {
+            for (auto& ep : arr) {
+                if (!ep.is_object() || !jget(ep, "number").is_number()) continue;
+                std::string epSlug = js(ep, "slug");
+                if (epSlug.empty() || epSlug == slug || !seen.insert(epSlug).second) continue;
+                Episode e;
+                e.url = "/epizoda/" + epSlug;
+                e.number = toNumber(js(ep, "number"), -1);
+                e.name = "Epizoda " + js(ep, "number");
+                if (jget(ep, "filler").is_boolean() && ep["filler"].get<bool>()) e.name += " (filler)";
+                det.episodes.push_back(e);
+            }
+        };
+        addEps(jget(anime, "episodes"));
+        if (det.episodes.empty())
+            for (auto& q : qs)
+                if (!isNoise(q.first) && contains(lower(q.first), "episod")) {
+                    const json& data = q.second;
+                    addEps(data.is_array() ? data : jget(data, "items").is_array() ? jget(data, "items") : jget(data, "episodes"));
+                }
         sortEpisodesDesc(det.episodes);
         return det;
     }
 
     std::vector<Video> videos(const std::string& episodeUrl) override {
         auto d = doc(abs(episodeUrl));
-        json ep = jget(pageProps(*d), "episode");
+        std::vector<std::string> links;
+        json ep = jget(legacyProps(*d), "episode");
+        for (const char* k : {"player1", "player2", "player3", "player4", "player5"}) links.push_back(js(ep, k));
+        if (!ep.is_object()) {
+            // App Router: chiavi player* ovunque nello stato, altrimenti qualsiasi URL filemoon/m3u8 nel flusso RSC
+            for (auto& q : queries(*d)) {
+                if (isNoise(q.first)) continue;
+                std::function<void(const json&)> walk = [&](const json& j) {
+                    if (j.is_object()) {
+                        for (auto it = j.begin(); it != j.end(); ++it) {
+                            if (startsWith(it.key(), "player") && it.value().is_string()) links.push_back(it.value().get<std::string>());
+                            else walk(it.value());
+                        }
+                    } else if (j.is_array()) {
+                        for (auto& x : j) walk(x);
+                    }
+                };
+                walk(q.second);
+            }
+            if (links.empty()) {
+                std::string text = rsc(*d);
+                size_t p = 0;
+                while ((p = text.find("http", p)) != std::string::npos) {
+                    auto e = text.find_first_of("\"'\\ <", p);
+                    std::string u = text.substr(p, e == std::string::npos ? std::string::npos : e - p);
+                    p += 4;
+                    if (contains(u, "filemoon") || contains(u, ".m3u8")) links.push_back(u);
+                }
+            }
+        }
         std::vector<Video> out;
-        for (const char* k : {"player1", "player2", "player3", "player4", "player5"}) {
-            std::string u = trimChars(js(ep, k), "!");
-            if (u.empty()) continue;
+        std::set<std::string> seen;
+        for (auto& raw : links) {
+            std::string u = trimChars(raw, "!");
+            if (u.empty() || !seen.insert(u).second) continue;
             try {
                 if (contains(u, "filemoon")) append(out, moon(u, baseUrl(), "Filemoon - "));
                 else if (contains(u, ".m3u8")) out.push_back(simpleVideo(u, "Internal Player", baseUrl() + "/"));
@@ -2559,11 +2701,72 @@ class AnimeSrbija : public AsiaSource {
     }
 
   private:
-    std::string imgUrl(const std::string& img) const { return baseUrl() + "/_next/image?url=" + img + "&w=1080&q=75"; }
+    std::string imgUrl(const std::string& img) const {
+        if (img.empty()) return "";
+        if (startsWith(img, "http")) return img;
+        return baseUrl() + (startsWith(img, "/") ? img : "/" + img);
+    }
 
-    static json pageProps(const html::Document& d) {
+    static bool isNoise(const std::string& key) {
+        return contains(key, "sidebar") || contains(key, "site-settings") || contains(key, "news") || contains(key, "schedule") ||
+               contains(key, "\"latest\"") || contains(key, "season-timeline");
+    }
+
+    /** Vecchio formato Pages Router (script#__NEXT_DATA__). */
+    static json legacyProps(const html::Document& d) {
         json j = parseJson(d.selectFirst("script#__NEXT_DATA__").data());
         return jget(jget(j, "props"), "pageProps");
+    }
+
+    /** Testo del flusso RSC: concatenazione delle stringhe di self.__next_f.push([1,"..."]). */
+    static std::string rsc(const html::Document& d) {
+        std::string out;
+        for (auto& s : d.select("script")) {
+            std::string data = s.data();
+            auto p = data.find("self.__next_f.push([1,\"");
+            if (p == std::string::npos) continue;
+            size_t start = p + 22, i = start + 1;
+            while (i < data.size() && data[i] != '"') i += data[i] == '\\' ? 2 : 1;
+            if (i >= data.size()) continue;
+            json lit = parseJson(data.substr(start, i - start + 1));
+            if (lit.is_string()) out += lit.get<std::string>();
+        }
+        return out;
+    }
+
+    /** Stato React Query deidratato: coppie (queryKey grezzo, data). */
+    static std::vector<std::pair<std::string, json>> queries(const html::Document& d) {
+        std::vector<std::pair<std::string, json>> out;
+        std::string text = rsc(d);
+        const std::string marker = "\"queryKey\":";
+        size_t p = 0;
+        while ((p = text.find(marker, p)) != std::string::npos) {
+            std::string key = balancedAfter(text, marker, p);
+            p += marker.size();
+            if (key.empty()) continue;
+            size_t after = text.find(key, p - marker.size()) + key.size();
+            if (text.compare(after, 8, ",\"data\":") != 0) continue;
+            std::string data = balancedAfter(text, ",\"data\":", after);
+            json j = parseJson(data);
+            if (!j.is_discarded()) out.push_back({key, j});
+        }
+        return out;
+    }
+
+    static json findObj(const json& j, const std::function<bool(const json&)>& pred) {
+        if (j.is_object()) {
+            if (pred(j)) return j;
+            for (auto it = j.begin(); it != j.end(); ++it) {
+                json r = findObj(it.value(), pred);
+                if (r.is_object()) return r;
+            }
+        } else if (j.is_array()) {
+            for (auto& x : j) {
+                json r = findObj(x, pred);
+                if (r.is_object()) return r;
+            }
+        }
+        return json();
     }
 
     void addAnime(Page& p, const json& a) const {
@@ -2577,9 +2780,23 @@ class AnimeSrbija : public AsiaSource {
     Page filterPage(const std::string& url) {
         auto d = doc(url);
         Page p;
-        for (auto& a : jget(pageProps(*d), "anime")) addAnime(p, a);
-        for (auto& s : d->select("ul.pagination span.next-page"))
-            if (!contains(" " + s.attr("class") + " ", " disabled ")) p.hasNextPage = true;
+        for (auto& q : queries(*d)) {
+            if (!startsWith(q.first, "[\"anime\",\"list\"")) continue;
+            for (auto& a : jget(q.second, "items")) addAnime(p, a);
+            const json& hn = jget(q.second, "hasNextPage");
+            if (hn.is_boolean()) p.hasNextPage = hn.get<bool>();
+            else p.hasNextPage = jget(jget(q.second, "pagination"), "hasNextPage").is_boolean() &&
+                                 jget(jget(q.second, "pagination"), "hasNextPage").get<bool>();
+            if (!p.hasNextPage) {
+                json pag = findObj(q.second, [](const json& o) { return o.contains("hasNextPage"); });
+                p.hasNextPage = jget(pag, "hasNextPage").is_boolean() && pag["hasNextPage"].get<bool>();
+            }
+        }
+        if (p.animes.empty()) {
+            for (auto& a : jget(legacyProps(*d), "anime")) addAnime(p, a);
+            for (auto& s : d->select("ul.pagination span.next-page"))
+                if (!contains(" " + s.attr("class") + " ", " disabled ")) p.hasNextPage = true;
+        }
         return p;
     }
 };
@@ -2604,7 +2821,10 @@ class UAKino : public AsiaSource {
 
     Details details(const std::string& url) override {
         std::string pageUrl = abs(url);
-        auto d = doc(pageUrl);
+        http::Response r = req("GET", pageUrl);
+        if (r.status == 403 || r.status == 503) return fallbackDetails(url);  // Cloudflare solo sulle schede
+        check(r);
+        auto d = std::make_unique<html::Document>(r.body, pageUrl);
         Details det;
         det.title = html::textOf(d->select("h1 span.solototle"));
         det.thumbnail = fixUrl(d->absUrl(d->selectFirst("a[data-fancybox=gallery]"), "href"), baseUrl());
@@ -2612,6 +2832,32 @@ class UAKino : public AsiaSource {
 
         std::string titleId = d->selectFirst("input[id=post_id]").attr("value");
         if (trim(titleId).empty()) return det;
+        det.episodes = playlist(titleId, d.get(), det.title);
+        return det;
+    }
+
+  protected:
+    http::Headers baseHeaders() const override {
+        return {{"Referer", baseUrl() + "/"},
+                {"Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"},
+                {"Accept-Language", "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7"},
+                {"User-Agent", DESKTOP_UA}};
+    }
+
+  private:
+    /** La scheda e' dietro la verifica Cloudflare: id dal link ("/13232-titolo.html") e playlist via AJAX. */
+    Details fallbackDetails(const std::string& url) {
+        std::string last = substringAfterLast(substringBefore(url, ".html"), "/");
+        std::string id = substringBefore(last, "-");
+        if (id.empty() || digitsOnly(id) != id) throw http::Error("UAKino ha risposto HTTP 403 (verifica Cloudflare)");
+        Details det;
+        det.title = replaceAll(substringAfter(last, "-"), "-", " ");
+        det.episodes = playlist(id, nullptr, det.title);
+        if (det.episodes.empty()) throw http::Error("UAKino ha risposto HTTP 403 (verifica Cloudflare)");
+        return det;
+    }
+
+    std::vector<Episode> playlist(const std::string& titleId, const html::Document* d, const std::string& title) {
         std::string listUrl = baseUrl() + "/engine/ajax/playlists.php?news_id=" + http::urlEncode(titleId) + "&xfield=playlist";
         json parsed = parseJson(http::request("GET", listUrl,
                                               {{"Referer", baseUrl() + "/"}, {"X-Requested-With", "XMLHttpRequest"}, {"User-Agent", "Mozilla/5.0"}})
@@ -2627,7 +2873,7 @@ class UAKino : public AsiaSource {
                 e.name = trim(li.text() + " " + li.attr("data-voice"));
                 eps.push_back(e);
             }
-        } else {
+        } else if (d) {
             std::string playerUrl = fixUrl(d->selectFirst("iframe#pre").attr("src"), baseUrl());
             if (contains(playerUrl, "/serial/")) {
                 html::Document sd(http::getText(playerUrl), playerUrl);
@@ -2644,7 +2890,7 @@ class UAKino : public AsiaSource {
             } else if (!playerUrl.empty()) {
                 Episode e;
                 e.url = playerUrl;
-                e.name = det.title + " Фільм";
+                e.name = title + " Фільм";
                 eps.push_back(e);
             }
         }
@@ -2652,10 +2898,10 @@ class UAKino : public AsiaSource {
             eps[i].number = firstNumber(eps[i].name, (double)(i + 1));
         }
         std::reverse(eps.begin(), eps.end());
-        det.episodes = eps;
-        return det;
+        return eps;
     }
 
+  public:
     std::vector<Video> videos(const std::string& episodeUrl) override {
         std::string m3u8 = episodeUrl;
         if (!contains(episodeUrl, ".m3u8")) {
@@ -2780,10 +3026,11 @@ class UFDub : public AsiaSource {
     std::vector<Video> videos(const std::string& episodeUrl) override {
         std::string finalUrl = episodeUrl;
         try {
-            http::Response r = http::request("HEAD", episodeUrl, {{"Referer", baseUrl() + "/"}}, "", 30, true);
+            http::Response r = http::request("HEAD", encodeUrl(episodeUrl), {{"Referer", baseUrl() + "/"}}, "", 30, true);
             if (!r.finalUrl.empty()) finalUrl = r.finalUrl;
         } catch (const std::exception&) {
         }
+        finalUrl = encodeUrl(finalUrl);
         return {simpleVideo(replaceAll(finalUrl, "dl=1", "raw=1"), "Quality")};
     }
 
@@ -3959,12 +4206,12 @@ class AniZone : public AsiaSource {
             std::string raw = x.substr(start, std::min(i, x.size()) - start);
             raw = replaceAll(replaceAll(replaceAll(replaceAll(raw, "\\u0022", "\""), "\\u0026", "&"), "\\'", "'"), "\\/", "/");
             json cfg = parseJson(raw);
-            src = js(cfg, "src");
+            src = replaceAll(js(cfg, "src"), "\\/", "/");
             for (auto& s : jget(cfg, "subtitles")) subs.push_back({replaceAll(js(s, "file"), "\\/", "/"), js(s, "title")});
             break;
         }
         if (src.empty()) {
-            src = d.selectFirst("media-player").attr("src");
+            src = replaceAll(d.selectFirst("media-player").attr("src"), "\\/", "/");
             for (auto& t : d.select("track[kind=subtitles]")) subs.push_back({replaceAll(t.attr("src"), "\\/", "/"), t.attr("label")});
         }
         if (src.empty()) return {};

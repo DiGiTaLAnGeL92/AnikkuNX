@@ -113,6 +113,21 @@ brls::View* MainActivity::createContentView() {
 }
 
 void MainActivity::onContentAvailable() {
+    // il player si era chiuso in modo anomalo: spiega cosa e' stato disattivato
+    std::string notice = Config::instance().crashNotice;
+    Config::instance().crashNotice.clear();
+    if (!notice.empty()) {
+        std::string text = notice == "subs"
+                               ? tr("L'app si e' chiusa durante la riproduzione. Per sicurezza ho disattivato i font dei "
+                                    "sottotitoli (Impostazioni > Riproduzione). Se non succede piu', era quella la causa.")
+                               : tr("L'app si e' chiusa di nuovo durante la riproduzione. Ho disattivato anche il proxy per "
+                                    "gli stream camuffati (Impostazioni > Riproduzione).");
+        brls::delay(800, [text] {
+            auto* d = new brls::Dialog(text);
+            d->addButton(tr("OK"), [] {});
+            d->open();
+        });
+    }
     // primo avvio: scelta delle fonti da attivare
     if (!Config::instance().sourcesChosen)
         brls::delay(100, [] { brls::Application::pushActivity(new SourcePickerActivity(true)); });
@@ -446,6 +461,20 @@ SettingsTab::SettingsTab() {
         Config::instance().save();
     });
     box->addView(hw);
+
+    auto* subFonts = new brls::BooleanCell();
+    subFonts->init(tr("Sottotitoli con i font della console"), cfg.subtitleFonts, [](bool on) {
+        Config::instance().subtitleFonts = on;
+        Config::instance().save();
+    });
+    box->addView(subFonts);
+
+    auto* proxy = new brls::BooleanCell();
+    proxy->init(tr("Ripara gli stream con segmenti camuffati (proxy locale)"), cfg.hlsProxy, [](bool on) {
+        Config::instance().hlsProxy = on;
+        Config::instance().save();
+    });
+    box->addView(proxy);
 
     auto* skip = new brls::BooleanCell();
     skip->init(tr("Salta automaticamente la sigla (se la fonte la indica)"), cfg.autoSkipOpening, [](bool on) {

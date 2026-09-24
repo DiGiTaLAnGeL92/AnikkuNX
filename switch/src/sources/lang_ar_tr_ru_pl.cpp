@@ -1773,25 +1773,62 @@ class AnimeLek : public Base {
 // ---- Okanime (ar.okanime)
 class Okanime : public Base {
   public:
-    Okanime() : Base("ar.okanime", "Okanime", "https://www.okanime.xyz", "ar") {}
+    Okanime() : Base("ar.okanime", "Okanime", "https://ww3.okanime.xyz", "ar") {}
 
     Page popular(int) override {
         DocPtr doc = page("/");
-        return cards(*doc);
+        return cards(*doc, true);
     }
     Page latest(int page) override {
-        DocPtr doc = this->page("/espisode-list?page=" + std::to_string(page));
-        return cards(*doc);
+        DocPtr doc = this->page("/recently-uploaded-episodes?page=" + std::to_string(page));
+        return cards(*doc, false);
     }
     Page search(const std::string& q, int page) override {
         std::string path = "/search/?s=" + http::urlEncode(q) + (page > 1 ? "&page=" + std::to_string(page) : "");
         DocPtr doc = this->page(path);
-        return cards(*doc);
+        return cards(*doc, true);
     }
 
     Details details(const std::string& url) override {
-        DocPtr doc = page(url);
+        DocPtr doc = page(toAnimeUrl(url));
         Details d;
+        // nuovo layout (2026): animepage-*
+        if (doc->selectFirst("div.animepage-sidebar, dl.animepage-meta")) {
+            for (auto& h : doc->select("h1.animepage-h1, h1"))
+                if (!trim(h.text()).empty()) {
+                    d.title = trim(h.text());
+                    break;
+                }
+            if (d.title.empty()) d.title = doc->selectFirst(".animepage-h1").text();
+            d.thumbnail = doc->absUrl(doc->selectFirst("img.animepage-poster"), "src");
+            d.genre = joinText(doc->select("div.animepage-genres a"));
+            d.description = trim(doc->selectFirst("div.synopsis-text").text());
+            std::string info;
+            for (auto& row : doc->select("dl.animepage-meta div.animepage-meta-row")) {
+                std::string k = trim(row.selectFirst("dt").text()), v = trim(row.selectFirst("dd").text());
+                if (k == "الحالة") d.status = contains(v, "يعرض") ? "In corso" : contains(v, "مكتمل") ? "Completato" : "";
+                if (!k.empty()) info += "\n" + k + ": " + v;
+            }
+            if (!info.empty()) d.description = trim(d.description + "\n" + info);
+            for (auto& a : doc->select("div.ep-compact-grid a, a.ep-compact-btn, div.ep-list a[href*='/episode/'], div.episode-card a[href*='/episode/']")) {
+                Episode e;
+                e.url = rel(*doc, a);
+                if (e.url.empty()) continue;
+                bool dup = false;
+                for (auto& x : d.episodes)
+                    if (x.url == e.url) dup = true;
+                if (dup) continue;
+                std::string t = trim(a.attr("title"));
+                if (t.empty()) t = trim(a.text());
+                std::string n = afterLast(e.url, "-episode-");
+                e.number = toNumber(n, toNumber(digitsOnly(t), 1));
+                e.name = t.empty() ? "الحلقة " + numStr(e.number) : t;
+                d.episodes.push_back(e);
+            }
+            newestFirst(d.episodes);
+            return d;
+        }
+        // vecchio layout
         d.title = doc->selectFirst("div.author-info-title > h1").text();
         d.genre = joinText(doc->select("div.review-author-info a"));
         html::Node infos = doc->selectFirst("div.text-right");
@@ -1820,39 +1857,76 @@ class Okanime : public Base {
     std::vector<Video> videos(const std::string& url) override {
         DocPtr doc = page(url);
         std::vector<Video> out;
-        for (auto& el : doc->select("a.ep-link")) {
-            std::string span = el.selectFirst("span").text();
-            std::string q = span == "HD" ? "720p" : span == "FHD" ? "1080p" : span == "SD" ? "480p" : "240p";
-            std::string u = el.attr("data-src");
+        std::set<std::string> seen;
+        auto handle = [&](const std::string& raw, const std::string& q) {
+            std::string u = fixUrl(trim(raw), doc->url());
+            if (!startsWith(u, "http") || !seen.insert(u).second) return;
             tryAppend(out, [&]() -> std::vector<Video> {
                 if (contains(u, "https://doo") && contains(u, "/e/")) return dood(u, "DoodStream - " + q + " ");
+                if (isDood(u)) return dood(u, "DoodStream - " + q + " ");
                 if (contains(u, "mp4upload")) return mp4upload(u, "");
                 if (contains(u, "ok.ru")) return okru(u, "");
-                if (contains(u, "voe.sx")) return voe(u, "");
+                if (contains(u, "voe.sx") || contains(u, "voe.")) return voe(u, "");
                 if (anyIn(u, {"vidbam", "vadbam", "vidbom", "vidbm"})) return vidBom(u);
+                if (contains(u, "uqload")) return uqload(u);
+                if (contains(u, "streamtape")) return streamtape(u, "");
+                if (anyIn(u, {"streamwish", "filelions", "wishfast", "swdyu", "embedwish"})) return streamWish(u, "");
+                if (contains(u, "vidhide") || contains(u, "vidhidepro")) return vidHide(u, "");
+                if (contains(u, "mixdrop")) return mixDrop(u);
+                if (contains(u, "yourupload")) return yourUpload(u);
+                if (contains(u, "dailymotion")) return dailymotion(u, "Dailymotion - ");
                 return {};
             });
+        };
+        for (auto& el : doc->select("a.ep-link, [data-src], [data-url], [data-embed], [data-link]")) {
+            std::string span = el.selectFirst("span").text();
+            std::string q = span == "HD" ? "720p" : span == "FHD" ? "1080p" : span == "SD" ? "480p" : "240p";
+            if (el.tag() == "img" || el.tag() == "script") continue;
+            for (const char* at : {"data-src", "data-url", "data-embed", "data-link"}) {
+                std::string v = el.attr(at);
+                if (!v.empty() && !startsWith(v, "http") && !startsWith(v, "//")) {
+                    std::string dec = b64(v);
+                    if (startsWith(dec, "http")) v = dec;
+                }
+                if (!v.empty()) handle(v, q);
+            }
         }
+        for (auto& f : doc->select("iframe")) handle(f.attr("src").empty() ? f.attr("data-src") : f.attr("src"), "");
         finish(out, "1080p");
         return out;
     }
 
   private:
-    Page cards(const html::Document& doc) {
+    /** Gli URL di episodio della lista "recenti" portano alla pagina dell'anime. */
+    static std::string toAnimeUrl(const std::string& url) {
+        if (!contains(url, "/episode/")) return url;
+        return "/anime/" + substringBefore(afterLast(url, "/episode/"), "-episode-");
+    }
+
+    Page cards(const html::Document& doc, bool lastSectionOnly) {
         Page p;
         std::set<std::string> seen;
+        auto add = [&](const html::Node& el) {
+            html::Node a = el.selectFirst("div.anime-title > h4 > a");
+            if (!a) a = el.selectFirst("a[href]");
+            Anime an{toAnimeUrl(rel(doc, a)), trim(a.text()), el.selectFirst("img").attr("src")};
+            if (an.title.empty()) an.title = trim(substringBefore(el.selectFirst("img").attr("alt"), " | "));
+            if (!an.url.empty() && seen.insert(an.url).second) p.animes.push_back(an);
+        };
         // div.container > div.section:last-child div.anime-card
-        for (auto& sec : doc.select("div.container > div.section")) {
-            if (!isLastChild(sec)) continue;
-            for (auto& el : sec.select("div.anime-card")) {
-                html::Node a = el.selectFirst("div.anime-title > h4 > a");
-                Anime an{rel(doc, a), a.text(), el.selectFirst("img").attr("src")};
-                if (!an.url.empty() && seen.insert(an.url).second) p.animes.push_back(an);
+        if (lastSectionOnly)
+            for (auto& sec : doc.select("div.container > div.section"))
+                if (isLastChild(sec))
+                    for (auto& el : sec.select("div.anime-card")) add(el);
+        if (p.animes.empty())
+            for (auto& el : doc.select("div.anime-card")) {
+                if (hasClass(el.parent().parent(), "related-grid")) continue;
+                add(el);
             }
-        }
         // ul.pagination > li:last-child:not(.disabled)
         for (auto& li : doc.select("ul.pagination > li"))
             if (isLastChild(li) && !hasClass(li, "disabled")) p.hasNextPage = true;
+        if (!p.hasNextPage) p.hasNextPage = doc.selectFirst("a[rel=next]").valid();
         return p;
     }
 };
@@ -2260,7 +2334,7 @@ class Asia2TV : public Base {
 // ---- Egy Dead (ar.egydead)
 class EgyDead : public Base {
   public:
-    EgyDead() : Base("ar.egydead", "Egy Dead", "https://egydead.space", "ar") {}
+    EgyDead() : Base("ar.egydead", "Egy Dead", "https://tv10.egydead.live", "ar") {}
 
     Page popular(int) override {
         DocPtr doc = page("/");
@@ -2297,9 +2371,16 @@ class EgyDead : public Base {
     }
 
     std::vector<Video> videos(const std::string& url) override {
-        http::Response r = httpPostRaw(full(url), formBody({{"View", "1"}}), headers());
-        checkStatus(r, full(url));
-        html::Document doc(r.body, full(url));
+        // il dominio cambia spesso e il redirect trasforma il POST in GET: si risolve prima l'URL finale
+        std::string target = full(url);
+        try {
+            http::Response g = http::request("GET", encodeUrl(target), headers());
+            if (!g.finalUrl.empty()) target = g.finalUrl;
+        } catch (const std::exception&) {
+        }
+        http::Response r = httpPostRaw(target, formBody({{"View", "1"}}), withHeaders(headers(), {{"Referer", target}}));
+        checkStatus(r, target);
+        html::Document doc(r.body, r.finalUrl.empty() ? target : r.finalUrl);
         std::vector<Video> out;
         for (auto& li : doc.select("ul.serversList li")) {
             std::string u = li.attr("data-link");
@@ -4097,7 +4178,7 @@ std::vector<std::shared_ptr<Source>> makeArTrRuPlSources() {
     std::vector<std::shared_ptr<Source>> out;
     // arabo (anime)
     out.push_back(std::make_shared<AnimeListTheme>(AnimeListTheme::ANIME4UP, "ar.anime4up", "Anime4Up", "https://w1.anime4up.rest"));
-    out.push_back(std::make_shared<AnimeListTheme>(AnimeListTheme::WITANIME, "ar.witanime", "WIT ANIME", "https://witanime.cyou"));
+    out.push_back(std::make_shared<AnimeListTheme>(AnimeListTheme::WITANIME, "ar.witanime", "WIT ANIME", "https://witanime.site"));
     out.push_back(std::make_shared<Animerco>());
     out.push_back(std::make_shared<AnimeLek>());
     out.push_back(std::make_shared<Okanime>());

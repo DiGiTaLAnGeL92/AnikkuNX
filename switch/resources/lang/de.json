@@ -157,5 +157,9 @@
   "Ucraino": "Ukrainisch",
   "Hindi": "Hindi",
   "Giapponese": "Japanisch",
-  "Lo stream si e' interrotto (segmenti non leggibili)": "Der Stream wurde unterbrochen (Segmente nicht lesbar)"
+  "Lo stream si e' interrotto (segmenti non leggibili)": "Der Stream wurde unterbrochen (Segmente nicht lesbar)",
+  "L'app si e' chiusa durante la riproduzione. Per sicurezza ho disattivato i font dei sottotitoli (Impostazioni > Riproduzione). Se non succede piu', era quella la causa.": "Die App wurde während der Wiedergabe beendet. Zur Sicherheit wurden die Untertitel-Schriften deaktiviert (Einstellungen > Wiedergabe). Passiert es nicht wieder, war das die Ursache.",
+  "L'app si e' chiusa di nuovo durante la riproduzione. Ho disattivato anche il proxy per gli stream camuffati (Impostazioni > Riproduzione).": "Die App wurde erneut während der Wiedergabe beendet. Auch der Proxy für getarnte Streams wurde deaktiviert (Einstellungen > Wiedergabe).",
+  "Sottotitoli con i font della console": "Untertitel mit den Schriften der Konsole",
+  "Ripara gli stream con segmenti camuffati (proxy locale)": "Streams mit getarnten Segmenten reparieren (lokaler Proxy)"
 }

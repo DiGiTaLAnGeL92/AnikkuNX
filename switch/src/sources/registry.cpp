@@ -38,7 +38,9 @@ static const std::set<std::string> DISABLED = {
     "pt.animesotaku", "pt.animescx", "pt.funanimetv", "pt.doramogo", "pt.animesgames", "fr.otakufr", "ar.animelek",
     "ar.animeiat", "ar.arabseed", "tr.animeler", "tr.hdfilmcehennemi", "id.nimegami", "hi.yomovies",
     "all.animeworldindia", "hi.animeworldindia", "pt.animeplay", "pt.animesroll", "fr.voircartoon", "tr.turkanime",
-    "es.animebum",
+    "es.animebum", "pl.desuonline", "fr.animevostfr", "fr.empirestreaming", "fr.anisama", "fr.wiflix", "fr.hds",
+    "de.kool", "de.movie4k", "de.animestream", "de.kinoking", "pt.animesgratis", "pt.betteranimeio", "id.oploverz",
+    "id.neonime", "ar.witanime",
 };
 
 static std::vector<std::shared_ptr<Source>> build() {

@@ -157,5 +157,9 @@
   "Ucraino": "烏克蘭語",
   "Hindi": "印地語",
   "Giapponese": "日語",
-  "Lo stream si e' interrotto (segmenti non leggibili)": "影片串流中斷（片段無法讀取）"
+  "Lo stream si e' interrotto (segmenti non leggibili)": "影片串流中斷（片段無法讀取）",
+  "L'app si e' chiusa durante la riproduzione. Per sicurezza ho disattivato i font dei sottotitoli (Impostazioni > Riproduzione). Se non succede piu', era quella la causa.": "播放時應用程式關閉了。為安全起見已關閉字幕字型（設定 > 播放）。如果不再發生，原因就在於此。",
+  "L'app si e' chiusa di nuovo durante la riproduzione. Ho disattivato anche il proxy per gli stream camuffati (Impostazioni > Riproduzione).": "播放時應用程式再次關閉。偽裝串流的代理也已關閉（設定 > 播放）。",
+  "Sottotitoli con i font della console": "使用主機字型顯示字幕",
+  "Ripara gli stream con segmenti camuffati (proxy locale)": "修復偽裝片段的串流（本機代理）"
 }

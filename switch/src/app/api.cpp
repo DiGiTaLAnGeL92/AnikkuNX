@@ -245,7 +245,7 @@ json play(const std::string& token) {
     std::string playUrl = v.url;
     std::string lowerUrl = v.url;
     std::transform(lowerUrl.begin(), lowerUrl.end(), lowerUrl.begin(), [](unsigned char c) { return std::tolower(c); });
-    if (lowerUrl.find("m3u8") != std::string::npos) {
+    if (Config::instance().hlsProxy && lowerUrl.find("m3u8") != std::string::npos) {
         http::Headers hh;
         hh.push_back({"User-Agent", v.userAgent.empty() ? http::DEFAULT_UA : v.userAgent});
         if (!v.referer.empty()) hh.push_back({"Referer", v.referer});

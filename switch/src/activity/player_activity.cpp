@@ -385,6 +385,7 @@ PlayerActivity::PlayerActivity(PlayRequest r) : req(std::move(r)) {
 }
 
 PlayerActivity::~PlayerActivity() {
+    Config::instance().markPlaying(false);
     *alive = false;
     brls::Application::setActiveEvent(false);
 #ifdef __SWITCH__
@@ -621,6 +622,7 @@ brls::View* PlayerActivity::createContentView() {
     mpv->onFileLoaded = [this] {
         overlay->message.clear();
         loadedAt = std::chrono::steady_clock::now();
+        Config::instance().markPlaying(true);
         loadedFrom = std::max(0.0, mpv->position);
         // come Aniyomi: seleziona subito i sottotitoli nella lingua preferita (lingua dell'app, poi inglese, poi il primo)
         auto subs = current.value("subtitles", json::array());

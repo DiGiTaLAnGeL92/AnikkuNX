@@ -1005,8 +1005,37 @@ class AnimesDigital : public PtBase {
         if (page > 1) return {};
         return list(baseUrl() + "/home", false);
     }
-    Page latest(int page) override { return list(baseUrl() + "/lancamentos/page/" + std::to_string(page), true); }
+    Page latest(int page) override {
+        // il link "Ver Mais" della home ora punta a /lancamentos01 (/lancamentos da' 404)
+        std::string p1 = page <= 1 ? baseUrl() + "/lancamentos01" : baseUrl() + "/lancamentos01/page/" + std::to_string(page);
+        try {
+            return list(p1, true);
+        } catch (const std::exception&) {
+            return list(baseUrl() + "/lancamentos/page/" + std::to_string(page), true);
+        }
+    }
     Page search(const std::string& q, int page) override {
+        // modulo di ricerca del sito: GET /pesquisa/?s=...
+        try {
+            std::string url = page <= 1 ? baseUrl() + "/pesquisa/?s=" + http::urlEncode(q)
+                                        : baseUrl() + "/pesquisa/page/" + std::to_string(page) + "/?s=" + http::urlEncode(q);
+            auto d = doc(url);
+            Page p;
+            std::set<std::string> seen;
+            for (auto& a : d->select("div.itemA > a, div.itemE > a")) {
+                Anime an = item(*d, a);
+                if (an.title.empty()) an.title = trim(substringBefore(replaceAll(a.attr("title"), "Assistir ", ""), " Online"));
+                if (an.url.empty() || !seen.insert(an.url).second) continue;
+                p.animes.push_back(an);
+            }
+            p.hasNextPage = d->selectFirst("ul > li.next, a.next.page-numbers").valid();
+            if (!p.animes.empty()) return p;
+        } catch (const std::exception&) {
+        }
+        return ajaxSearch(q, page);
+    }
+
+    Page ajaxSearch(const std::string& q, int page) {
         std::vector<std::pair<std::string, std::string>> f = {
             {"type", "lista"}, {"limit", "30"}, {"token", searchToken()}};
         if (!q.empty()) f.push_back({"search", q});
@@ -1032,7 +1061,9 @@ class AnimesDigital : public PtBase {
     Details details(const std::string& url) override {
         auto d = realDoc(doc(abs(url)));
         Details out;
-        out.thumbnail = d->selectFirst("div.poster > img").attr("data-lazy-src");
+        html::Node poster = d->selectFirst("div.poster > img");
+        out.thumbnail = poster.attr("data-lazy-src");
+        if (out.thumbnail.empty()) out.thumbnail = poster.attr("src");
         std::string st = d->selectFirst("div.clw > div.playon").text();
         out.status = st == "Em Lançamento" ? "In corso" : st == "Completo" ? "Completato" : "";
         html::Node dados = d->selectFirst("div.crw > div.dados");
@@ -1089,9 +1120,13 @@ class AnimesDigital : public PtBase {
 
     std::string searchToken() {
         std::lock_guard<std::mutex> lock(tokenMutex);
-        if (token.empty()) {
-            auto d = doc(baseUrl() + "/animes-legendados-online");
-            token = d->selectFirst("div.menu_filter_box").attr("data-secury");
+        for (const char* path : {"/animes-legendados-online001", "/animes-legendados-online"}) {
+            if (!token.empty()) break;
+            try {
+                auto d = doc(baseUrl() + path);
+                token = d->selectFirst("div.menu_filter_box").attr("data-secury");
+            } catch (const std::exception&) {
+            }
         }
         return token;
     }
@@ -2095,11 +2130,9 @@ class DonghuaNoSekai : public PtBase {
         if (page > 1) return {};
         auto d = doc(baseUrl());
         Page p;
-        for (auto& a : d->select("div.sidebarContent div.navItensTop li > a")) {
-            Anime an;
-            an.url = rel(d->absUrl(a, "href"));
-            an.title = a.attr("title");
-            an.thumbnail = a.selectFirst("img").attr("src");
+        // barra laterale "Novos Donghuas" (il vecchio menu navItensTop non esiste piu')
+        for (auto& a : d->select("div.sidebarContent ul.postsNew li > a, div.sidebarContent div.navItensTop li > a")) {
+            Anime an = genericItem(*d, a);
             if (!an.url.empty()) p.animes.push_back(an);
         }
         return p;
@@ -2112,6 +2145,26 @@ class DonghuaNoSekai : public PtBase {
         return p;
     }
     Page search(const std::string& q, int page) override {
+        // ricerca WordPress (il POST admin-ajax "getListFilter" ora risponde "no_verify_nonce")
+        std::string url = page <= 1 ? baseUrl() + "/?s=" + http::urlEncode(q)
+                                    : baseUrl() + "/page/" + std::to_string(page) + "/?s=" + http::urlEncode(q);
+        Page p;
+        http::Response r = http::request("GET", url, siteHeaders());
+        if (r.status >= 200 && r.status < 300) {
+            html::Document d(r.body, r.finalUrl.empty() ? url : r.finalUrl);
+            std::set<std::string> seen;
+            for (auto& a : d.select("div.itemE > a, div.itemA > a, div.boxContent article a, div.result-item a")) {
+                Anime an = genericItem(d, a);
+                if (an.url.empty() || an.title.empty() || !seen.insert(an.url).second) continue;
+                p.animes.push_back(an);
+            }
+            p.hasNextPage = d.selectFirst("ul.content-pagination > li.next, a.next.page-numbers").valid();
+        }
+        if (!p.animes.empty()) return p;
+        return ajaxSearch(q, page);
+    }
+
+    Page ajaxSearch(const std::string& q, int page) {
         std::vector<std::pair<std::string, std::string>> f = {
             {"type", "lista"},
             {"action", "getListFilter"},
@@ -2142,8 +2195,10 @@ class DonghuaNoSekai : public PtBase {
         auto d = realDoc(doc(abs(url)));
         Details out;
         out.thumbnail = d->selectFirst("div.poster > img").attr("src");
+        if (out.thumbnail.empty()) out.thumbnail = d->selectFirst("meta[property=og:image]").attr("content");
         html::Node infos = d->selectFirst("div.dados");
         out.title = infos.selectFirst("h1").text();
+        if (out.title.empty()) out.title = d->selectFirst("h1").text();
         out.genre = joinText(infos.select("div.genresL > a"));
         auto lis = infos.select("ul > li");
         auto li = [&](const std::string& key) {
@@ -2211,6 +2266,22 @@ class DonghuaNoSekai : public PtBase {
         an.url = rel(d.absUrl(a, "href"));
         an.title = a.selectFirst("div.title h3").text();
         an.thumbnail = a.selectFirst("div.thumb img").attr("src");
+        return an;
+    }
+
+    Anime genericItem(const html::Document& d, const html::Node& a) {
+        Anime an;
+        an.url = rel(d.absUrl(a, "href"));
+        for (const char* sel : {"div.title h3", "h4.title", "h3", "h2", "span.title_anime", ".title"}) {
+            an.title = trim(a.selectFirst(sel).text());
+            if (!an.title.empty()) break;
+        }
+        if (an.title.empty()) an.title = trim(a.attr("title"));
+        if (an.title.empty()) an.title = trim(a.attr("alt"));
+        if (startsWith(an.title, "Assistir ")) an.title = an.title.substr(9);
+        html::Node img = a.selectFirst("img");
+        an.thumbnail = img.attr("src");
+        if (an.thumbnail.empty() || startsWith(an.thumbnail, "data:")) an.thumbnail = img.attr("data-src");
         return an;
     }
 

@@ -696,7 +696,8 @@ std::vector<Video> betterAnimeApi(const std::string& encodedSource) {
     std::vector<Video> out;
     if (!j.is_object() || jsonString(j, "status") != "success" || !j.contains("play") || !j["play"].is_array()) return out;
     for (auto& p : j["play"]) {
-        std::string src = jsonString(p, "src");
+        std::string src = trim(jsonString(p, "src"));
+        while (!src.empty() && src.back() == '\\') src.pop_back();
         if (src.empty()) continue;
         std::string label = jsonString(p, "sizeText");
         if (label.empty()) label = "Default";
@@ -1024,6 +1025,42 @@ class DooPlay : public Source {
     // ------------------------------------------------------------------------------------------ elenchi
 
     Page popular(int page) override {
+        return withFallback([&] { return popularPrimary(page); }, page == 1 ? baseUrl() + "/" : "");
+    }
+
+    Page latest(int page) override {
+        if (!supportsLatest()) return {};
+        return withFallback([&] { return latestPrimary(page); }, "");
+    }
+
+  private:
+    /** Selettori generici del tema, usati se quelli del sito non trovano nulla. */
+    static constexpr const char* GENERIC_SEL =
+        "article.item div.poster, article.w_item_a > a, article.w_item_b > a, div.result-item div.image a, "
+        "div.result-item article div.thumbnail > a, div.items article div.poster, article.item";
+
+    /** Esegue l'elenco del sito; se fallisce o e' vuoto riprova con i selettori generici sulla pagina indicata. */
+    template <typename F>
+    Page withFallback(F primary, const std::string& fallbackUrl) {
+        std::string error;
+        try {
+            Page p = primary();
+            if (!p.animes.empty()) return p;
+        } catch (const std::exception& e) {
+            error = e.what();
+        }
+        if (!fallbackUrl.empty()) {
+            try {
+                Page p = list(fallbackUrl, GENERIC_SEL, "");
+                if (!p.animes.empty()) return p;
+            } catch (const std::exception&) {
+            }
+        }
+        if (!error.empty()) throw http::Error(error);
+        return {};
+    }
+
+    Page popularPrimary(int page) {
         std::string b = baseUrl(), p = std::to_string(page);
         switch (info.site) {
             case Site::AnimePlay:
@@ -1052,8 +1089,7 @@ class DooPlay : public Source {
         return {};
     }
 
-    Page latest(int page) override {
-        if (!supportsLatest()) return {};
+    Page latestPrimary(int page) {
         std::string b = baseUrl(), p = std::to_string(page);
         std::string path;
         switch (info.site) {
@@ -1073,6 +1109,7 @@ class DooPlay : public Source {
         return list(path, LATEST_SEL, latestNext(), info.site == Site::JetAnime);
     }
 
+  public:
     Page search(const std::string& rawQuery, int page) override {
         std::string query = trim(rawQuery);
         if (startsWith(query, "https://") || startsWith(query, "http://")) {
@@ -1339,7 +1376,14 @@ class DooPlay : public Source {
             if (!fromElement(*doc, el, an, jetLatest)) continue;
             if (seen.insert(an.url).second) p.animes.push_back(an);
         }
-        p.hasNextPage = hasNext(*doc, next);
+        if (p.animes.empty() && selector != GENERIC_SEL) {
+            for (auto& el : doc->select(GENERIC_SEL)) {
+                Anime an;
+                if (!fromElement(*doc, el, an, jetLatest)) continue;
+                if (seen.insert(an.url).second) p.animes.push_back(an);
+            }
+        }
+        p.hasNextPage = !p.animes.empty() && hasNext(*doc, next);
         return p;
     }
 
@@ -1617,13 +1661,15 @@ class DooPlay : public Source {
 
     // ------------------------------------------------------------------------------------------ player DooPlay
 
-    std::string playerAjax(const html::Node& li, const std::string& referer = "") const {
+    enum class Api { Ajax, V1, V2 };
+
+    std::string playerAjax(const html::Node& li, const std::string& referer = "", const std::string& ajaxUrl = "") const {
         http::Headers h = mergeHeaders(hdr(), {{"Content-Type", "application/x-www-form-urlencoded; charset=UTF-8"},
                                                {"X-Requested-With", "XMLHttpRequest"}});
         if (!referer.empty()) h = mergeHeaders(h, {{"Referer", referer}});
         std::string type = li.attr("data-type");
         if (info.site == Site::DeTodoPeliculas && trim(type).empty()) type = "movie";
-        http::Response r = http::request("POST", baseUrl() + "/wp-admin/admin-ajax.php", h,
+        http::Response r = http::request("POST", ajaxUrl.empty() ? baseUrl() + "/wp-admin/admin-ajax.php" : ajaxUrl, h,
                                          formEncode({{"action", "doo_player_ajax"},
                                                      {"post", li.attr("data-post")},
                                                      {"nume", li.attr("data-nume")},
@@ -1632,16 +1678,73 @@ class DooPlay : public Source {
         return r.body;
     }
 
-    std::string playerV2(const html::Node& li) const {
-        return http::getText(baseUrl() + "/wp-json/dooplayer/v2/" + li.attr("data-post") + "/" + li.attr("data-type") + "/" +
-                                 li.attr("data-nume"),
+    std::string playerV2(const html::Node& li, const std::string& apiBase = "") const {
+        std::string base = apiBase.empty() ? baseUrl() + "/wp-json/dooplayer/v2/" : apiBase;
+        if (!endsWith(base, "/")) base += "/";
+        return http::getText(base + li.attr("data-post") + "/" + li.attr("data-type") + "/" + li.attr("data-nume"), hdr());
+    }
+
+    std::string playerV1(const html::Node& li, const std::string& origin = "") const {
+        return http::getText((origin.empty() ? baseUrl() : origin) + "/wp-json/dooplayer/v1/post/" + li.attr("data-post") +
+                                 "?type=" + li.attr("data-type") + "&source=" + li.attr("data-nume"),
                              hdr());
     }
 
-    std::string playerV1(const html::Node& li) const {
-        return http::getText(baseUrl() + "/wp-json/dooplayer/v1/post/" + li.attr("data-post") + "?type=" + li.attr("data-type") +
-                                 "&source=" + li.attr("data-nume"),
-                             hdr());
+    /** Configurazione del player letta dalla pagina (dtAjax = {"url":..., "player_api":..., "play_method":...}). */
+    struct PlayerCfg {
+        std::string origin, ajaxUrl, apiV2;
+        bool ajaxFirst = false;
+        bool known = false;
+    };
+
+    PlayerCfg playerCfg(const html::Document& doc) const {
+        PlayerCfg c;
+        c.origin = doc.url().empty() ? baseUrl() : http::originOf(doc.url());
+        std::string script = scriptWith(doc, {"dtAjax"});
+        if (!script.empty()) {
+            std::string obj = substringAfter(script.substr(script.find("dtAjax")), "=");
+            auto end = obj.find("};");
+            if (end != std::string::npos && end < 8192) {
+                json j = json::parse(trim(obj.substr(0, end + 1)), nullptr, false);
+                if (j.is_object()) {
+                    c.known = true;
+                    std::string u = jsonString(j, "url");
+                    if (!u.empty()) c.ajaxUrl = http::resolve(c.origin + "/", u);
+                    c.apiV2 = jsonString(j, "player_api");
+                    c.ajaxFirst = jsonString(j, "play_method") == "admin_ajax";
+                }
+            }
+        }
+        if (c.ajaxUrl.empty()) c.ajaxUrl = c.origin + "/wp-admin/admin-ajax.php";
+        if (c.apiV2.empty()) c.apiV2 = c.origin + "/wp-json/dooplayer/v2/";
+        return c;
+    }
+
+    /**
+     * URL dell'embed di un'opzione del player. Usa il metodo indicato dalla pagina (dtAjax), poi quello
+     * dell'estensione Kotlin e infine gli altri: i siti cambiano spesso tra admin-ajax e le API REST v1/v2.
+     */
+    std::string playerEmbed(const html::Document& doc, const html::Node& li, Api pref) const {
+        if (li.attr("data-nume") == "trailer") return "";
+        PlayerCfg c = playerCfg(doc);
+        std::vector<Api> order;
+        if (c.known) order = c.ajaxFirst ? std::vector<Api>{Api::Ajax, Api::V2} : std::vector<Api>{Api::V2, Api::Ajax};
+        for (Api a : {pref, Api::Ajax, Api::V2, Api::V1})
+            if (std::find(order.begin(), order.end(), a) == order.end()) order.push_back(a);
+        for (Api a : order) {
+            try {
+                std::string body = a == Api::Ajax ? playerAjax(li, doc.url(), c.ajaxUrl)
+                                   : a == Api::V2 ? playerV2(li, c.apiV2)
+                                                  : playerV1(li, c.origin);
+                std::string url = embedUrlOf(body);
+                if (url.empty() && contains(body, "src='")) url = replaceAll(substringBefore(substringAfter(body, "src='"), "'"), "\\", "");
+                if (url.empty()) url = iframeSrc(body);
+                url = fixUrl(url, c.origin + "/");
+                if (startsWith(url, "http")) return url;
+            } catch (const std::exception&) {
+            }
+        }
+        return "";
     }
 
     template <typename F>
@@ -1670,7 +1773,7 @@ class DooPlay : public Source {
         each(doc->select("ul#playeroptionsul li"), out, [&](const html::Node& li) -> std::vector<Video> {
             std::string title = li.selectFirst("span.title").text();
             std::string name = title.empty() ? "Player" : ptQualityName(title);
-            std::string url = embedUrlOf(info.site == Site::AnimePlay ? playerAjax(li) : playerV2(li));
+            std::string url = playerEmbed(*doc, li, info.site == Site::AnimePlay ? Api::Ajax : Api::V2);
             if (!startsWith(url, "http")) return {};
             if (contains(url, "blogger.com")) {
                 auto v = blogger(url, baseUrl());
@@ -1759,7 +1862,7 @@ class DooPlay : public Source {
         each(doc->select("ul#playeroptionsul li"), out, [&](const html::Node& li) -> std::vector<Video> {
             std::string fullName = li.selectFirst("span.title").text();
             std::string realName = substringBefore(substringAfter(fullName, "("), ")");
-            std::string url = embedUrlOf(playerAjax(li));
+            std::string url = playerEmbed(*doc, li, Api::Ajax);
             std::vector<Video> v;
             if (contains(url, "anroll.online")) v = anrollOnline(url, realName);
             if (v.empty()) v = universal(url, realName, baseUrl());
@@ -1773,7 +1876,7 @@ class DooPlay : public Source {
         DocPtr doc = fetch(pageUrl);
         std::vector<Video> out;
         each(doc->select("ul#playeroptionsul li"), out, [&](const html::Node& li) -> std::vector<Video> {
-            std::string url = embedUrlOf(playerV2(li));
+            std::string url = playerEmbed(*doc, li, Api::V2);
             if (!contains(url, "jwplayer?source=") && !contains(url, "jwplayer/?source=")) return {};
             std::string src = urlDecode(http::queryParam(url, "source"));
             if (src.empty()) return {};
@@ -1802,7 +1905,7 @@ class DooPlay : public Source {
         DocPtr doc = fetch(pageUrl);
         std::vector<Video> out;
         each(doc->select("li.dooplay_player_option"), out, [&](const html::Node& li) -> std::vector<Video> {
-            std::string link = embedUrlOf(playerAjax(li));
+            std::string link = playerEmbed(*doc, li, Api::Ajax);
             if (link.empty()) return {};
             std::string server = li.selectFirst("span.title").text();
             if (contains(link, "filemoon")) return moon(link, baseUrl(), "Filemoon - ");
@@ -1840,7 +1943,7 @@ class DooPlay : public Source {
         std::vector<Video> out;
         each(doc->select("ul#playeroptionsul li"), out, [&](const html::Node& li) -> std::vector<Video> {
             std::string name = li.selectFirst("span.title").text();
-            std::string url = embedUrlOf(playerV1(li));
+            std::string url = playerEmbed(*doc, li, Api::V1);
             if (url.empty()) return {};
             return ninjaExtract(url, name);
         });
@@ -1853,7 +1956,7 @@ class DooPlay : public Source {
         std::vector<Video> out;
         each(doc->select("ul#playeroptionsul li"), out, [&](const html::Node& li) -> std::vector<Video> {
             if (li.attr("data-nume") == "trailer") return {};
-            std::string url = embedUrlOf(playerV1(li));
+            std::string url = playerEmbed(*doc, li, Api::V1);
             if (url.empty()) return {};
             std::string redirected = url;
             try {
@@ -1865,7 +1968,7 @@ class DooPlay : public Source {
             std::string name = trim(li.text());
             if (contains(redirected, "https://sentinel")) return jetPlayer(redirected, "Sentinel", name);
             if (contains(redirected, "https://hdsplay")) return jetPlayer(redirected, "Hdsplay", name);
-            return {};
+            return universal(redirected, name, http::originOf(doc->url()));
         });
         return out;
     }
@@ -1902,7 +2005,7 @@ class DooPlay : public Source {
         DocPtr doc = fetch(pageUrl);
         std::vector<Video> out;
         each(doc->select("#playeroptions li:not(#player-option-trailer)"), out, [&](const html::Node& li) -> std::vector<Video> {
-            std::string secured = embedUrlOf(playerV1(li));
+            std::string secured = playerEmbed(*doc, li, Api::V1);
             if (!startsWith(secured, "http")) return {};
             http::Response r = http::request("GET", secured, hdr());
             std::string playerUrl = r.finalUrl.empty() ? secured : r.finalUrl;
@@ -1918,7 +2021,7 @@ class DooPlay : public Source {
         DocPtr doc = fetch(pageUrl);
         std::vector<Video> out;
         each(doc->select("li.dooplay_player_option"), out, [&](const html::Node& li) -> std::vector<Video> {
-            std::string link = embedUrlOf(playerAjax(li));
+            std::string link = playerEmbed(*doc, li, Api::Ajax);
             if (contains(link, "https://dood")) return dood(link, "");
             if (contains(link, "https://voe.sx")) return voe(link, "");
             if (contains(link, "filehosted")) return {simpleVideo(link, "Filehosted")};
@@ -1933,7 +2036,7 @@ class DooPlay : public Source {
         std::vector<Video> out;
         each(doc->select("ul#playeroptionsul li"), out, [&](const html::Node& li) -> std::vector<Video> {
             std::string lang = li.selectFirst("span.title").text();
-            std::string url = embedUrlOf(playerAjax(li));
+            std::string url = playerEmbed(*doc, li, Api::Ajax);
             if (url.empty()) return {};
             if (contains(url, "uqload")) return uqload(url, lang + " -");
             if (contains(url, "strwish")) return streamWish(url, titlePrefix(lang), {{"Referer", baseUrl() + "/"}});
@@ -1951,7 +2054,7 @@ class DooPlay : public Source {
         return t;
     }
 
-    std::string deTodoPlayerUrl(const html::Node& li, const std::string& referer) const {
+    std::string deTodoPlayerUrl(const html::Node& li, const std::string& referer, const std::string& ajaxUrl) const {
         for (const char* a : {"data-option", "data-player", "data-src", "data-url", "data-video"}) {
             std::string v = trim(li.attr(a));
             if (!v.empty()) return normalizeUrl(v);
@@ -1959,7 +2062,7 @@ class DooPlay : public Source {
         std::string href = trim(li.selectFirst("a[href]").attr("href"));
         if (!href.empty()) return normalizeUrl(href);
         if (trim(li.attr("data-post")).empty() || trim(li.attr("data-nume")).empty()) return "";
-        std::string body = playerAjax(li, referer);
+        std::string body = playerAjax(li, referer, ajaxUrl);
         if (trim(body).empty()) return "";
         std::string embed = normalizeUrl(embedUrlOf(body));
         if (!embed.empty()) return embed;
@@ -2008,13 +2111,14 @@ class DooPlay : public Source {
     std::vector<Video> deTodoVideos(const std::string& pageUrl) {
         DocPtr doc = fetch(pageUrl);
         std::vector<Video> out;
+        std::string ajaxUrl = playerCfg(*doc).ajaxUrl;
         each(doc->select("ul#playeroptionsul li"), out, [&](const html::Node& li) -> std::vector<Video> {
             html::Node flag = li.selectFirst("span.flag img");
             std::string flagSrc = flag.attr("data-lazy-src");
             if (trim(flagSrc).empty()) flagSrc = flag.attr("src");
             std::string f = lower(flagSrc);
             std::string lang = contains(f, "sub") ? "[SUB]" : contains(f, "cas") ? "[CAST]" : contains(f, "lat") ? "[LAT]" : "UNKNOWN";
-            std::string url = deTodoPlayerUrl(li, pageUrl);
+            std::string url = deTodoPlayerUrl(li, pageUrl, ajaxUrl);
             if (url.empty()) return {};
             return deTodoExtract(url, lang, pageUrl);
         });
@@ -2026,7 +2130,7 @@ class DooPlay : public Source {
         DocPtr doc = fetch(pageUrl);
         std::vector<Video> out;
         each(doc->select("ul#playeroptionsul li"), out, [&](const html::Node& li) -> std::vector<Video> {
-            std::string url = embedUrlOf(playerAjax(li));
+            std::string url = playerEmbed(*doc, li, Api::Ajax);
             if (!contains(url, "embed69")) return {};
             http::Response r = http::request("GET", url, mergeHeaders(hdr(), {{"Referer", pageUrl}}));
             if (!ok(r) || trim(r.body).empty()) return {};
@@ -2074,10 +2178,7 @@ class DooPlay : public Source {
         for (auto& el : doc->select("[data-post][data-nume]")) {
             if (el.attr("data-type").empty()) continue;
             try {
-                std::string presp = playerAjax(el, pageUrl);
-                std::string iframe = iframeSrc(presp);
-                if (iframe.empty()) iframe = embedUrlOf(presp);
-                iframe = fixUrl(iframe, pageUrl);
+                std::string iframe = playerEmbed(*doc, el, Api::Ajax);
                 if (!startsWith(iframe, "http")) continue;
                 http::Response r = http::request("GET", iframe, mergeHeaders(hdr(), {{"Referer", pageUrl}}));
                 if (!ok(r)) continue;
@@ -2115,9 +2216,7 @@ class DooPlay : public Source {
         DocPtr doc = fetch(pageUrl);
         std::vector<Video> out;
         each(doc->select("ul#playeroptionsul li"), out, [&](const html::Node& li) -> std::vector<Video> {
-            std::string body = playerAjax(li);
-            std::string iframe = contains(body, "src='") ? replaceAll(substringBefore(substringAfter(body, "src='"), "'"), "\\", "")
-                                                         : embedUrlOf(body);
+            std::string iframe = playerEmbed(*doc, li, Api::Ajax);
             if (!startsWith(iframe, "http")) return {};
             DocPtr frame = fetch(iframe);
             std::vector<Video> res;
