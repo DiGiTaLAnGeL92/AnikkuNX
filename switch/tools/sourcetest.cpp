@@ -206,7 +206,8 @@ std::string probe(const src::Video& v, std::string& detail) {
 std::string probeSub(const src::Video::Track& t, const src::Video& v) {
     http::Response r = fetchRange(t.url, playerHeaders(v), 2048);
     if (r.status >= 400) return "HTTP " + std::to_string(r.status);
-    if (r.body.find("WEBVTT") != std::string::npos || r.body.find("-->") != std::string::npos) return "ok (VTT/SRT)";
+    std::string esc = r.body.find("\\\"") != std::string::npos ? " con virgolette escapate (ripulite dall'app)" : "";
+    if (r.body.find("WEBVTT") != std::string::npos || r.body.find("-->") != std::string::npos) return "ok (VTT/SRT)" + esc;
     if (r.body.find("[Script Info]") != std::string::npos) return "ok (ASS)";
     return "formato sconosciuto";
 }

@@ -159,5 +159,13 @@
   "Giapponese": "Japans",
   "Lo stream si e' interrotto (segmenti non leggibili)": "De stream is onderbroken (onleesbare segmenten)",
   "L'app si e' chiusa durante la riproduzione. Ho disattivato il proxy per gli stream camuffati (Impostazioni > Riproduzione): se il problema sparisce, era quella la causa.": "De app sloot tijdens het afspelen. De proxy voor vermomde streams is uitgeschakeld (Instellingen > Afspelen): verdwijnt het probleem, dan was dat de oorzaak.",
-  "Ripara gli stream con segmenti camuffati (proxy locale)": "Streams met vermomde segmenten herstellen (lokale proxy)"
+  "Ripara gli stream con segmenti camuffati (proxy locale)": "Streams met vermomde segmenten herstellen (lokale proxy)",
+  "Lingua dei sottotitoli": "Ondertiteltaal",
+  "Lingua della console": "Taal van de console",
+  "Nessuno (sottotitoli spenti)": "Geen (ondertitels uit)",
+  "Olandese": "Nederlands",
+  "Hai modificato le fonti ma non hai confermato. Vuoi salvare le modifiche?": "Je hebt de bronnen gewijzigd maar niet bevestigd. Wijzigingen opslaan?",
+  "Salva": "Opslaan",
+  "Esci senza salvare": "Afsluiten zonder opslaan",
+  "Indietro": "Terug"
 }

@@ -18,10 +18,15 @@ class SourcePickerActivity : public brls::Activity {
   private:
     void rebuild();
     void confirm();
+    /** B: se ci sono modifiche non salvate chiede se salvarle invece di uscire e perderle. */
+    void askBeforeLeaving();
+    bool hasChanges() const;
 
     bool firstRun;
     std::function<void()> onDone;
     std::set<std::string> selected;
+    std::set<std::string> initialSelected;
     bool showNsfw;
+    bool initialNsfw = false;
     brls::Box* list = nullptr;
 };

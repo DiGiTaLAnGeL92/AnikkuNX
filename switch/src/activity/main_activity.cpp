@@ -13,6 +13,7 @@
 #endif
 #define UPDATE_REPO_DISPLAY UPDATE_REPO
 #include "config.hpp"
+#include "util/sublang.hpp"
 #include "app/api.hpp"
 #include "sources/source.hpp"
 
@@ -422,8 +423,11 @@ SettingsTab::SettingsTab() {
     auto* pick = new brls::DetailCell();
     pick->setText(tr("Scegli le fonti attive"));
     pick->setDetailText(tr("{} attive", std::to_string(api::sources().size())));
-    pick->registerClickAction([](brls::View*) {
-        brls::Application::pushActivity(new SourcePickerActivity(false));
+    pick->registerClickAction([pick](brls::View*) {
+        // dopo la conferma aggiorna subito il numero di fonti attive
+        brls::Application::pushActivity(new SourcePickerActivity(false, [pick] {
+            pick->setDetailText(tr("{} attive", std::to_string(api::sources().size())));
+        }));
         return true;
     });
     box->addView(pick);
@@ -458,6 +462,28 @@ SettingsTab::SettingsTab() {
         Config::instance().save();
     });
     box->addView(hw);
+
+    {
+        // lingua dei sottotitoli quando il video ne ha piu' di una
+        std::vector<std::string> labels;
+        int selected = 0;
+        const auto& codes = sublang::choices();
+        for (size_t i = 0; i < codes.size(); i++) {
+            const std::string& c = codes[i];
+            labels.push_back(c == "auto"  ? tr("Lingua della console")
+                             : c == "off" ? tr("Nessuno (sottotitoli spenti)")
+                                          : i18n::languageName(c));
+            if (c == cfg.subtitleLang) selected = (int)i;
+        }
+        auto* subLang = new brls::SelectorCell();
+        subLang->init(tr("Lingua dei sottotitoli"), labels, selected, [](int i) {
+            const auto& codes = sublang::choices();
+            if (i < 0 || i >= (int)codes.size()) return;
+            Config::instance().subtitleLang = codes[i];
+            Config::instance().save();
+        });
+        box->addView(subLang);
+    }
 
     auto* proxy = new brls::BooleanCell();
     proxy->init(tr("Ripara gli stream con segmenti camuffati (proxy locale)"), cfg.hlsProxy, [](bool on) {

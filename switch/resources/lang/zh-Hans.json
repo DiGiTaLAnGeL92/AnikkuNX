@@ -159,5 +159,13 @@
   "Giapponese": "日语",
   "Lo stream si e' interrotto (segmenti non leggibili)": "视频流中断（片段无法读取）",
   "L'app si e' chiusa durante la riproduzione. Ho disattivato il proxy per gli stream camuffati (Impostazioni > Riproduzione): se il problema sparisce, era quella la causa.": "播放时应用关闭了。已关闭伪装流代理（设置 > 播放）。如果问题消失，原因就在于此。",
-  "Ripara gli stream con segmenti camuffati (proxy locale)": "修复伪装分段的视频流（本地代理）"
+  "Ripara gli stream con segmenti camuffati (proxy locale)": "修复伪装分段的视频流（本地代理）",
+  "Lingua dei sottotitoli": "字幕语言",
+  "Lingua della console": "主机语言",
+  "Nessuno (sottotitoli spenti)": "无（关闭字幕）",
+  "Olandese": "荷兰语",
+  "Hai modificato le fonti ma non hai confermato. Vuoi salvare le modifiche?": "你修改了片源但尚未确认。要保存更改吗？",
+  "Salva": "保存",
+  "Esci senza salvare": "不保存并退出",
+  "Indietro": "返回"
 }

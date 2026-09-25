@@ -5,6 +5,12 @@ No PC or server needed: the console talks to the sites directly. The Aniyomi sou
 
 🇮🇹 [Leggi in italiano](#italiano)
 
+<p align="center">
+  <img src="docs/screenshots/home.png" width="32%" alt="Continue watching">
+  <img src="docs/screenshots/episodi.png" width="32%" alt="Episode list">
+  <img src="docs/screenshots/player.png" width="32%" alt="Player">
+</p>
+
 ## Features
 
 - **Sources**: Italian (AnimeWorld, AnimeUnity, AnimeSaturn), English and multi-language sites. On first launch you pick
@@ -40,8 +46,7 @@ No PC or server needed: the console talks to the sites directly. The Aniyomi sou
 
 Many more sites are ported (about 180 in total) but stay hidden until they pass the live test
 (`testa-altre-lingue.bat`): several are behind Cloudflare, closed or blocked by some ISPs.
-\* often blocked by anti-bot protection or moved to a new domain. Many more sources (Turkish, Polish, Korean, Ukrainian…)
-are ported in `switch/src/sources/` but hidden until they pass `testa-altre-lingue.bat` (Cloudflare, dead or moved sites). Sites change address often: you can set a new domain
+Sites change address often: you can set a new domain
 per source in *Settings*, no rebuild needed.
 
 ## Install
@@ -105,6 +110,7 @@ AnikkuNX is released under the **GNU GPL v3** (see [LICENSE](LICENSE)).
 - [borealis](https://github.com/xfangfang/borealis) (Apache-2.0), [gumbo-parser](https://github.com/google/gumbo-parser) (Apache-2.0), [nlohmann/json](https://github.com/nlohmann/json) (MIT).
 - [mpv](https://mpv.io) and [FFmpeg](https://ffmpeg.org) (LGPL/GPL), using the Switch packages from [wiliwili](https://github.com/xfangfang/wiliwili).
 - [libnx](https://github.com/switchbrew/libnx) / devkitPro, and [Material Icons](https://fonts.google.com/icons) (Apache-2.0).
+- [GNU FreeFont](https://www.gnu.org/software/freefont/) FreeSans (GPL-3.0 with font exception), used for Hindi, Arabic, Thai… characters.
 
 ---
 

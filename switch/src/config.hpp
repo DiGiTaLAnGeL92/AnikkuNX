@@ -31,6 +31,7 @@ class Config {
     bool checkNewEpisodes = true;   // controlla i nuovi episodi della libreria all'avvio
     std::string skippedVersion;     // versione che l'utente ha scelto di saltare
     bool autoSkipOpening = false;
+    std::string subtitleLang = "auto";  // lingua preferita dei sottotitoli ("auto" = console, "off" = spenti)
     bool hlsProxy = true;       // proxy locale per i segmenti HLS camuffati da immagine
     /** Messaggio da mostrare all'avvio se il player si era chiuso in modo anomalo ("" se nessuno). */
     std::string crashNotice;

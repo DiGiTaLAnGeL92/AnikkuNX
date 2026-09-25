@@ -6,6 +6,7 @@
 #include <map>
 
 #include "config.hpp"
+#include "util/sublang.hpp"
 
 #ifdef __SWITCH__
 #include <switch.h>
@@ -624,31 +625,16 @@ brls::View* PlayerActivity::createContentView() {
         loadedAt = std::chrono::steady_clock::now();
         Config::instance().markPlaying(true);
         loadedFrom = std::max(0.0, mpv->position);
-        // come Aniyomi: seleziona subito i sottotitoli nella lingua preferita (lingua dell'app, poi inglese, poi il primo)
+        // come Aniyomi: con piu' tracce parte quella nella lingua preferita (Impostazioni > Riproduzione,
+        // di base la lingua della console), poi l'inglese, poi la prima. "Nessuno" = nessuna attiva.
         auto subs = current.value("subtitles", json::array());
         int pick = -1;
-        if (!subs.empty()) {
-            std::string ui = brls::Application::getPlatform()->getLocale().substr(0, 2);
-            auto matches = [&](const std::string& lang, const std::vector<std::string>& keys) {
-                std::string l = lang;
-                std::transform(l.begin(), l.end(), l.begin(), [](unsigned char c) { return std::tolower(c); });
-                for (auto& k : keys)
-                    if (l == k || l.rfind(k + "-", 0) == 0 || l.rfind(k + "_", 0) == 0 ||
-                        (k.size() > 3 && l.find(k) != std::string::npos))
-                        return true;
-                return false;
-            };
-            static const std::map<std::string, std::vector<std::string>> names = {
-                {"it", {"it", "ita", "italian", "italiano"}}, {"en", {"en", "eng", "english"}},
-                {"es", {"es", "spa", "spanish", "español", "espanol"}}, {"fr", {"fr", "fre", "fra", "french", "français"}},
-                {"de", {"de", "ger", "deu", "german", "deutsch"}}, {"pt", {"pt", "por", "portuguese", "português"}},
-                {"ru", {"ru", "rus", "russian"}}, {"ja", {"ja", "jpn", "japanese"}}, {"ko", {"ko", "kor", "korean"}},
-                {"zh", {"zh", "chi", "zho", "chinese"}}, {"nl", {"nl", "dut", "nld", "dutch"}}};
-            for (const char* want : {ui.c_str(), "en"}) {
-                auto it = names.find(want);
-                if (it == names.end() || pick >= 0) continue;
+        std::string pref = sublang::preferred();
+        if (!subs.empty() && pref != "off") {
+            for (const std::string& want : {pref, std::string("en")}) {
                 for (size_t i = 0; i < subs.size() && pick < 0; i++)
-                    if (matches(subs[i].value("lang", ""), it->second)) pick = (int)i;
+                    if (sublang::matches(subs[i].value("lang", ""), want)) pick = (int)i;
+                if (pick >= 0) break;
             }
             if (pick < 0) pick = 0;
         }

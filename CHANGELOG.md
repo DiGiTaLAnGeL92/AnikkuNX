@@ -3,6 +3,15 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.5.7
+
+- Corrette le lettere accentate (à, è, ì, ò, ù) che comparivano staccate dal resto della parola: l'interfaccia ora usa il font standard della console invece di quello cinese
+- Sottotitoli: le virgolette non compaiono più con la barra davanti (\"giorno\" → "giorno")
+- Caratteri hindi (e arabi, thai, ebraici...) visibili nei sottotitoli e nei titoli invece dei quadratini: l'app include il font GNU FreeSans come riserva
+- Con più tracce di sottotitoli parte quella nella lingua della console (poi inglese). Nuova voce in Impostazioni > Riproduzione per scegliere un'altra lingua o spegnerli
+- Scelta delle fonti: se esci con B senza aver confermato, l'app chiede se salvare le modifiche. Il numero di fonti attive nelle Impostazioni si aggiorna subito
+- Screenshot dell'app nella pagina GitHub
+
 ## 0.5.6
 
 - Proxy per gli stream camuffati (server HD-1 di Anichi/Anikoto) riscritto: usa pochi thread fissi invece di crearne uno per ogni segmento, niente più chiusure dell'app

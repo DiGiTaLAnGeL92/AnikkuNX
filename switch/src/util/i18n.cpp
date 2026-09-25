@@ -86,5 +86,6 @@ std::string i18n::languageName(const std::string& l) {
     if (l == "uk") return tr("Ucraino");
     if (l == "hi") return tr("Hindi");
     if (l == "ja") return tr("Giapponese");
+    if (l == "nl") return tr("Olandese");
     return l;
 }

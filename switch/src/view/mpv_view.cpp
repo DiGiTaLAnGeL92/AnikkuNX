@@ -16,6 +16,7 @@
 #endif
 
 #include "config.hpp"
+#include "util/sublang.hpp"
 
 #include <sys/stat.h>
 #include <cstdio>
@@ -65,7 +66,19 @@ static std::string prepareSubtitleFonts() {
         PlFontData font;
         if (R_FAILED(plGetSharedFontByType(&font, it.type)) || !font.address || !font.size) continue;
         writeFile(dir + "/fonts/" + it.name, font.address, font.size);
-        if (it.type == PlSharedFontType_Standard) writeFile(dir + "/subfont.ttf", font.address, font.size);
+    }
+    // subfont.ttf e' il font di ripiego di libass per i caratteri che il font della console non ha
+    // (hindi, arabo, thai, ebraico...): GNU FreeSans, incluso nell'app. Il latino resta col font della console.
+    {
+        FILE* in = fopen("romfs:/font/FreeSans.ttf", "rb");
+        if (in) {
+            std::string data;
+            char buf[65536];
+            size_t n;
+            while ((n = fread(buf, 1, sizeof(buf), in)) > 0) data.append(buf, n);
+            fclose(in);
+            if (!data.empty()) writeFile(dir + "/subfont.ttf", data.data(), data.size());
+        }
     }
 #endif
     return dir;
@@ -106,7 +119,14 @@ MpvView::MpvView() {
     mpv_set_option_string(mpv, "audio-channels", "stereo");
     mpv_set_option_string(mpv, "video-timing-offset", "0");
     mpv_set_option_string(mpv, "sub-auto", "no");
-    mpv_set_option_string(mpv, "slang", "it,ita,Italian,Italiano,en,eng");
+    {
+        // sottotitoli incorporati nel video: lingua scelta nelle impostazioni (o della console), poi inglese
+        std::string slang = sublang::mpvSlang();
+        if (slang.empty())
+            mpv_set_option_string(mpv, "sid", "no");
+        else
+            mpv_set_option_string(mpv, "slang", slang.c_str());
+    }
     mpv_set_option_string(mpv, "alang", "ja,jpn,it,ita");
     mpv_set_option_string(mpv, "sub-font-size", "46");
     {

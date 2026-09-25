@@ -159,5 +159,13 @@
   "Giapponese": "Japonês",
   "Lo stream si e' interrotto (segmenti non leggibili)": "A transmissão foi interrompida (segmentos ilegíveis)",
   "L'app si e' chiusa durante la riproduzione. Ho disattivato il proxy per gli stream camuffati (Impostazioni > Riproduzione): se il problema sparisce, era quella la causa.": "O app fechou durante a reprodução. O proxy para streams camuflados foi desativado (Configurações > Reprodução): se o problema sumir, essa era a causa.",
-  "Ripara gli stream con segmenti camuffati (proxy locale)": "Reparar streams com segmentos camuflados (proxy local)"
+  "Ripara gli stream con segmenti camuffati (proxy locale)": "Reparar streams com segmentos camuflados (proxy local)",
+  "Lingua dei sottotitoli": "Idioma das legendas",
+  "Lingua della console": "Idioma do console",
+  "Nessuno (sottotitoli spenti)": "Nenhum (legendas desativadas)",
+  "Olandese": "Holandês",
+  "Hai modificato le fonti ma non hai confermato. Vuoi salvare le modifiche?": "Você alterou as fontes, mas não confirmou. Salvar as alterações?",
+  "Salva": "Salvar",
+  "Esci senza salvare": "Sair sem salvar",
+  "Indietro": "Voltar"
 }

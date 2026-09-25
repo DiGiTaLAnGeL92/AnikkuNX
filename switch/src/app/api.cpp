@@ -211,6 +211,35 @@ json hosterVideos(const std::string& sid, const std::string& episodeUrl, int) {
     return hosters(sid, episodeUrl, "")["hosters"][0];
 }
 
+/**
+ * Alcuni siti servono sottotitoli con le virgolette "escapate" come in JSON (\\" e \\'), che il player
+ * mostrerebbe cosi' come sono: "Anche oggi e' un \\"giorno\\" perfetto". In quel caso scarichiamo il file,
+ * lo ripuliamo e lo passiamo a mpv in memoria (memory://). Altrimenti resta l'URL originale.
+ */
+static std::string cleanSubtitle(const std::string& url, const http::Headers& headers) {
+    if (url.rfind("http", 0) != 0) return url;
+    try {
+        http::Response r = http::request("GET", url, headers, "", 15);
+        if (r.status < 200 || r.status >= 300 || r.body.empty() || r.body.size() > 8 * 1024 * 1024) return url;
+        const std::string& b = r.body;
+        if (b.find("\\\"") == std::string::npos && b.find("\\'") == std::string::npos &&
+            b.find("\\/") == std::string::npos)
+            return url;
+        std::string out;
+        out.reserve(b.size());
+        for (size_t i = 0; i < b.size(); i++) {
+            if (b[i] == '\\' && i + 1 < b.size() && (b[i + 1] == '"' || b[i + 1] == '\'' || b[i + 1] == '/')) {
+                out += b[++i];
+                continue;
+            }
+            out += b[i];
+        }
+        return "memory://" + out;
+    } catch (const std::exception&) {
+        return url;
+    }
+}
+
 json play(const std::string& token) {
     std::pair<std::string, src::Video> entry;
     {
@@ -238,24 +267,25 @@ json play(const std::string& token) {
         addField(h.first, h.second);
     }
     args.push_back({"http-header-fields", fields});
+    // intestazioni della fonte, per scaricare noi sottotitoli e playlist come farebbe il player
+    http::Headers hh;
+    hh.push_back({"User-Agent", v.userAgent.empty() ? http::DEFAULT_UA : v.userAgent});
+    if (!v.referer.empty()) hh.push_back({"Referer", v.referer});
+    if (!v.cookie.empty()) hh.push_back({"Cookie", v.cookie});
+    for (auto& h : v.headers) {
+        std::string lower = h.first;
+        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (lower == "referer" || lower == "user-agent") continue;
+        hh.push_back(h);
+    }
     json subs = json::array(), audio = json::array();
-    for (auto& t : v.subtitles) subs.push_back({{"url", t.url}, {"lang", t.lang}});
+    for (auto& t : v.subtitles) subs.push_back({{"url", cleanSubtitle(t.url, hh)}, {"lang", t.lang}});
     for (auto& t : v.audio) audio.push_back({{"url", t.url}, {"lang", t.lang}});
     // segmenti HLS camuffati da immagine: passano dal proxy locale che toglie l'intestazione finta
     std::string playUrl = v.url;
     std::string lowerUrl = v.url;
     std::transform(lowerUrl.begin(), lowerUrl.end(), lowerUrl.begin(), [](unsigned char c) { return std::tolower(c); });
     if (Config::instance().hlsProxy && lowerUrl.find("m3u8") != std::string::npos) {
-        http::Headers hh;
-        hh.push_back({"User-Agent", v.userAgent.empty() ? http::DEFAULT_UA : v.userAgent});
-        if (!v.referer.empty()) hh.push_back({"Referer", v.referer});
-        if (!v.cookie.empty()) hh.push_back({"Cookie", v.cookie});
-        for (auto& h : v.headers) {
-            std::string lower = h.first;
-            std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
-            if (lower == "referer" || lower == "user-agent") continue;
-            hh.push_back(h);
-        }
         hlsproxy::setLogFile(Config::instance().configDir() + "/proxy.log");
         if (hlsproxy::needsProxy(v.url, hh)) {
             std::string local = hlsproxy::wrap(v.url, hh);

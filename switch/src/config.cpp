@@ -48,6 +48,7 @@ void Config::load() {
         autoSkipOpening = j.value("autoSkipOpening", false);
         seekSeconds = j.value("seekSeconds", 10);
         hlsProxy = j.value("hlsProxy3", true);
+        subtitleLang = j.value("subtitleLang", "auto");
     } catch (const std::exception& e) {
         brls::Logger::error("config.json non valido: {}", e.what());
     }
@@ -67,6 +68,7 @@ void Config::save() {
         {"autoSkipOpening", autoSkipOpening},
         {"seekSeconds", seekSeconds},
         {"hlsProxy3", hlsProxy},
+        {"subtitleLang", subtitleLang},
     };
     std::ofstream out(configDir() + "/config.json");
     out << j.dump(2);

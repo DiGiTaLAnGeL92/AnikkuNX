@@ -25,6 +25,25 @@ int main(int argc, char* argv[]) {
     i18n::init();  // lingua dell'interfaccia = lingua di sistema
 
 #ifdef __SWITCH__
+    // Font predefinito = font standard della console (vedi scripts/setup.sh): i caratteri che non ha
+    // (cinese, coreano, simboli dei pulsanti, icone) vengono presi dagli altri font di sistema.
+    {
+        NVGcontext* vg = brls::Application::getNVGContext();
+        int regular = brls::Application::getFont(brls::FONT_REGULAR);
+        for (const std::string& name :
+             {brls::FONT_CHINESE_SIMPLIFIED, brls::FONT_CHINESE_SIMPLIFIED_EXT, brls::FONT_CHINESE_TRADITIONAL,
+              brls::FONT_KOREAN_REGULAR, brls::FONT_SWITCH_ICONS, brls::FONT_MATERIAL_ICONS}) {
+            int f = brls::Application::getFont(name);
+            if (regular >= 0 && f >= 0) nvgAddFallbackFontId(vg, regular, f);
+        }
+        // hindi (devanagari), arabo, thai, ebraico...: i font della console non li hanno.
+        // GNU FreeSans (GPL con eccezione per i font) li copre; senza shaping le legature indiane sono semplificate.
+        if (regular >= 0 && brls::Application::loadFontFromFile("freesans", "romfs:/font/FreeSans.ttf"))
+            nvgAddFallbackFontId(vg, regular, brls::Application::getFont("freesans"));
+    }
+#endif
+
+#ifdef __SWITCH__
     http::globalInit("romfs:/cacert.pem");
 #else
     http::globalInit("resources/cacert.pem");

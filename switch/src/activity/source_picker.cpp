@@ -26,6 +26,26 @@ SourcePickerActivity::SourcePickerActivity(bool first, std::function<void()> don
     for (auto& s : src::all())
         if (cfg.isSourceEnabled(s->id()) || (cfg.sourcesChosen && cfg.enabledSources.count(s->id())))
             selected.insert(s->id());
+    initialSelected = selected;
+    initialNsfw = showNsfw;
+}
+
+bool SourcePickerActivity::hasChanges() const {
+    // al primo avvio la scelta non e' ancora salvata: anche senza modifiche va confermata
+    return firstRun || selected != initialSelected || showNsfw != initialNsfw;
+}
+
+void SourcePickerActivity::askBeforeLeaving() {
+    if (!hasChanges()) {
+        brls::Application::popActivity(brls::TransitionAnimation::FADE);
+        return;
+    }
+    auto* d = new brls::Dialog(tr("Hai modificato le fonti ma non hai confermato. Vuoi salvare le modifiche?"));
+    d->addButton(tr("Salva"), [this] { brls::sync([this] { confirm(); }); });
+    d->addButton(tr("Esci senza salvare"),
+                 [] { brls::sync([] { brls::Application::popActivity(brls::TransitionAnimation::FADE); }); });
+    d->addButton(tr("Annulla"), [] {});
+    d->open();
 }
 
 brls::View* SourcePickerActivity::createContentView() {
@@ -76,6 +96,14 @@ brls::View* SourcePickerActivity::createContentView() {
         confirm();
         return true;
     });
+    // sostituisce il "Indietro" predefinito: niente uscite con modifiche non salvate
+    frame->registerAction(
+        tr("Indietro"), brls::BUTTON_B,
+        [this](brls::View*) {
+            askBeforeLeaving();
+            return true;
+        },
+        false, false, brls::SOUND_BACK);
     return frame;
 }
 

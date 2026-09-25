@@ -159,5 +159,13 @@
   "Giapponese": "Японский",
   "Lo stream si e' interrotto (segmenti non leggibili)": "Поток прервался (сегменты не читаются)",
   "L'app si e' chiusa durante la riproduzione. Ho disattivato il proxy per gli stream camuffati (Impostazioni > Riproduzione): se il problema sparisce, era quella la causa.": "Приложение закрылось во время воспроизведения. Прокси для замаскированных потоков отключён (Настройки > Воспроизведение): если проблема исчезнет, причина была в нём.",
-  "Ripara gli stream con segmenti camuffati (proxy locale)": "Исправлять потоки с замаскированными сегментами (локальный прокси)"
+  "Ripara gli stream con segmenti camuffati (proxy locale)": "Исправлять потоки с замаскированными сегментами (локальный прокси)",
+  "Lingua dei sottotitoli": "Язык субтитров",
+  "Lingua della console": "Язык консоли",
+  "Nessuno (sottotitoli spenti)": "Нет (субтитры выключены)",
+  "Olandese": "Нидерландский",
+  "Hai modificato le fonti ma non hai confermato. Vuoi salvare le modifiche?": "Вы изменили источники, но не подтвердили. Сохранить изменения?",
+  "Salva": "Сохранить",
+  "Esci senza salvare": "Выйти без сохранения",
+  "Indietro": "Назад"
 }

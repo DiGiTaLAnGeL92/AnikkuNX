@@ -159,5 +159,13 @@
   "Giapponese": "일본어",
   "Lo stream si e' interrotto (segmenti non leggibili)": "스트림이 중단되었습니다 (읽을 수 없는 세그먼트)",
   "L'app si e' chiusa durante la riproduzione. Ho disattivato il proxy per gli stream camuffati (Impostazioni > Riproduzione): se il problema sparisce, era quella la causa.": "재생 중 앱이 종료되었습니다. 위장 스트림 프록시를 껐습니다(설정 > 재생). 문제가 사라지면 그것이 원인이었습니다.",
-  "Ripara gli stream con segmenti camuffati (proxy locale)": "위장된 세그먼트 스트림 복구(로컬 프록시)"
+  "Ripara gli stream con segmenti camuffati (proxy locale)": "위장된 세그먼트 스트림 복구(로컬 프록시)",
+  "Lingua dei sottotitoli": "자막 언어",
+  "Lingua della console": "본체 언어",
+  "Nessuno (sottotitoli spenti)": "없음 (자막 끔)",
+  "Olandese": "네덜란드어",
+  "Hai modificato le fonti ma non hai confermato. Vuoi salvare le modifiche?": "소스를 변경했지만 확인하지 않았습니다. 변경 사항을 저장할까요?",
+  "Salva": "저장",
+  "Esci senza salvare": "저장하지 않고 나가기",
+  "Indietro": "뒤로"
 }
