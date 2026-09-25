@@ -3,6 +3,10 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.5.8
+
+- Corretto il crash all'avvio della 0.5.7 (i nuovi font venivano preparati prima che la finestra esistesse). Chi ha la 0.5.7 deve copiare a mano AnikkuNX.nro dalla pagina delle release
+
 ## 0.5.7
 
 - Corrette le lettere accentate (à, è, ì, ò, ù) che comparivano staccate dal resto della parola: l'interfaccia ora usa il font standard della console invece di quello cinese

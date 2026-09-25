@@ -24,7 +24,21 @@ int main(int argc, char* argv[]) {
     }
     i18n::init();  // lingua dell'interfaccia = lingua di sistema
 
+
 #ifdef __SWITCH__
+    http::globalInit("romfs:/cacert.pem");
+#else
+    http::globalInit("resources/cacert.pem");
+#endif
+    Config::instance().load();
+    Config::instance().checkPreviousCrash();
+    Config::instance().save();  // crea la cartella dati se manca
+    Config::instance().applyDomains();
+    api::init(Config::instance().configDir());
+
+    brls::Application::createWindow("AnikkuNX");
+#ifdef __SWITCH__
+    // (dopo createWindow: prima non esistono ne' il contesto grafico ne' i font di sistema)
     // Font predefinito = font standard della console (vedi scripts/setup.sh): i caratteri che non ha
     // (cinese, coreano, simboli dei pulsanti, icone) vengono presi dagli altri font di sistema.
     {
@@ -42,19 +56,6 @@ int main(int argc, char* argv[]) {
             nvgAddFallbackFontId(vg, regular, brls::Application::getFont("freesans"));
     }
 #endif
-
-#ifdef __SWITCH__
-    http::globalInit("romfs:/cacert.pem");
-#else
-    http::globalInit("resources/cacert.pem");
-#endif
-    Config::instance().load();
-    Config::instance().checkPreviousCrash();
-    Config::instance().save();  // crea la cartella dati se manca
-    Config::instance().applyDomains();
-    api::init(Config::instance().configDir());
-
-    brls::Application::createWindow("AnikkuNX");
     brls::Application::getPlatform()->setThemeVariant(brls::ThemeVariant::DARK);
     brls::Application::setGlobalQuit(false);
 
