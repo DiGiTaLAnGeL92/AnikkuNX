@@ -1,4 +1,8 @@
 #include "activity/update_activity.hpp"
+#include "net/upload_server.hpp"
+
+#include <cstdlib>
+#include <ctime>
 
 #include <sstream>
 
@@ -264,4 +268,129 @@ void UpdateActivity::onContentAvailable() {
                 });
             }
         });
+}
+
+// ============================================================================ debug: aggiornamento dal PC
+
+bool debugComboHeld() {
+    brls::ControllerState state{};
+    brls::Application::getPlatform()->getInputManager()->updateUnifiedControllerState(&state);
+    return state.buttons[brls::BUTTON_LB] && state.buttons[brls::BUTTON_RB];
+}
+
+DebugUploadActivity::~DebugUploadActivity() {
+    *alive = false;
+    uploadserver::stop();
+}
+
+brls::View* DebugUploadActivity::createContentView() {
+    auto* box = new brls::Box(brls::Axis::COLUMN);
+    box->setPadding(40, 80, 40, 80);
+    box->setAlignItems(brls::AlignItems::CENTER);
+
+    auto* title = new brls::Label();
+    title->setText("Modalita' debug: aggiornamento dal PC");
+    title->setFontSize(26);
+    box->addView(title);
+
+    std::string ip = uploadserver::localIp();
+    pin = std::to_string(1000 + (unsigned)(std::time(nullptr) * 2654435761u) % 9000);  // codice diverso ogni volta
+    dest = updater::appPath() + ".download";
+    if (!ip.empty()) port = uploadserver::start(pin, dest);
+
+    auto* ipLabel = new brls::Label();
+    ipLabel->setText(ip.empty() ? "Console non connessa a una rete" : "IP della console: " + ip);
+    ipLabel->setFontSize(40);
+    ipLabel->setTextColor(nvgRGB(255, 120, 170));
+    ipLabel->setMarginTop(30);
+    box->addView(ipLabel);
+
+    urlLabel = new brls::Label();
+    urlLabel->setFontSize(24);
+    urlLabel->setMarginTop(16);
+    urlLabel->setText(port ? "Apri nel browser del PC:  http://" + ip + ":" + std::to_string(port)
+                           : (ip.empty() ? "" : "Impossibile avviare il server"));
+    box->addView(urlLabel);
+
+    auto* pinLabel = new brls::Label();
+    pinLabel->setFontSize(32);
+    pinLabel->setMarginTop(16);
+    pinLabel->setText(port ? "Codice: " + pin : "");
+    box->addView(pinLabel);
+
+    status = new brls::Label();
+    status->setFontSize(20);
+    status->setMarginTop(30);
+    status->setTextColor(nvgRGB(180, 180, 190));
+    status->setText(port ? "In attesa del file .nro... (PC e console sulla stessa rete)" : "");
+    box->addView(status);
+
+    auto* note = new brls::Label();
+    note->setFontSize(16);
+    note->setMarginTop(30);
+    note->setTextColor(nvgRGB(140, 140, 150));
+    note->setText("Il server resta attivo solo finche' questa schermata e' aperta. B per chiudere.");
+    box->addView(note);
+
+    std::weak_ptr<bool> weak = alive;
+    auto t = std::make_shared<std::function<void()>>();
+    std::weak_ptr<std::function<void()>> weakT = t;
+    *t = [this, weak, weakT] {
+        auto a = weak.lock();
+        auto self = weakT.lock();
+        if (!a || !*a || !self) return;
+        tick();
+        brls::delay(300, [self] { (*self)(); });
+    };
+    ticker = t;
+    if (port) brls::delay(300, [t] { (*t)(); });
+
+    auto* frame = new brls::AppletFrame(box);
+    frame->registerAction(
+        "Indietro", brls::BUTTON_B,
+        [this](brls::View*) {
+            if (done)
+                brls::Application::quit();  // .nro gia' sostituito: si puo' solo chiudere
+            else if (!installing)
+                brls::Application::popActivity();
+            return true;
+        },
+        false, false, brls::SOUND_BACK);
+    return frame;
+}
+
+void DebugUploadActivity::tick() {
+    if (installing || done) return;
+    auto s = uploadserver::status();
+    if (s.state == "ricezione" && s.total > 0) {
+        char buf[96];
+        snprintf(buf, sizeof(buf), "Ricezione: %lld / %lld KB (%d%%)", s.received / 1024, s.total / 1024,
+                 (int)(s.received * 100 / s.total));
+        status->setText(buf);
+    } else if (s.state == "errore") {
+        status->setText("Errore: " + s.error + " - puoi riprovare dal browser");
+    } else if (s.state == "ricevuto") {
+        installing = true;
+        uploadserver::stop();
+        status->setText("File ricevuto, installazione in corso...");
+        std::string d = dest;
+        runAsync<bool>(
+            alive,
+            [d] {
+                updater::installLocalFile(d);
+                return true;
+            },
+            [this](bool) {
+                installing = false;
+                done = true;
+                status->setText("Installato! Premi B per chiudere l'app, poi riaprila.");
+                status->setTextColor(nvgRGB(120, 210, 120));
+            },
+            [this](const std::string& err) {
+                installing = false;
+                done = true;  // la romfs potrebbe essere gia' smontata: meglio chiudere
+                status->setText("Installazione non riuscita: " + err + "\nPremi B per chiudere l'app.");
+                status->setTextColor(nvgRGB(230, 110, 110));
+            });
+    }
 }

@@ -3,6 +3,10 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.6.1
+
+- Bugfix minori
+
 ## 0.6.0
 
 - Nuova sezione "Scaricati" (sotto Libreria): gli episodi si possono scaricare e guardare offline

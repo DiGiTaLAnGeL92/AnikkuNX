@@ -29,5 +29,8 @@ std::string appPath();
 Release latest();
 /** Scarica e sostituisce il .nro installato (bloccante). progress(0..1); se ritorna false annulla. */
 void install(const Release& r, std::function<bool(float)> progress);
+/** Controlla (firma NRO0, dimensione se > 0) e installa un .nro gia' presente su SD al posto di quello in uso.
+ *  Dopo questa chiamata l'app va chiusa (la romfs viene smontata). */
+void installLocalFile(const std::string& path, long long expectedSize = 0);
 
 }  // namespace updater

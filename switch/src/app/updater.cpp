@@ -78,7 +78,10 @@ void install(const Release& r, std::function<bool(float)> progress) {
                              if (total <= 0) total = r.size;
                              return progress ? progress(total > 0 ? (float)now / (float)total : 0.f) : true;
                          });
+    installLocalFile(tmp, r.size);
+}
 
+void installLocalFile(const std::string& tmp, long long expectedSize) {
     // controlli: dimensione e firma "NRO0" all'offset 0x10
     FILE* f = fopen(tmp.c_str(), "rb");
     if (!f) throw http::Error(tr("File scaricato non leggibile"));
@@ -88,7 +91,7 @@ void install(const Release& r, std::function<bool(float)> progress) {
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fclose(f);
-    if (n != 4 || std::memcmp(magic, "NRO0", 4) != 0 || (r.size > 0 && size != r.size)) {
+    if (n != 4 || std::memcmp(magic, "NRO0", 4) != 0 || (expectedSize > 0 && size != expectedSize)) {
         std::remove(tmp.c_str());
         throw http::Error(tr("Il file scaricato non e' valido, riprova"));
     }

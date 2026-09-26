@@ -527,7 +527,11 @@ SettingsTab::SettingsTab() {
     upd->setText(tr("Controlla aggiornamenti"));
     upd->setDetailText("github.com/" UPDATE_REPO_DISPLAY);
     upd->registerClickAction([](brls::View*) {
-        checkForUpdates(true);
+        // (debug interno: con L+R premuti si apre l'invio del .nro dal PC)
+        if (debugComboHeld())
+            brls::Application::pushActivity(new DebugUploadActivity());
+        else
+            checkForUpdates(true);
         return true;
     });
     box->addView(upd);

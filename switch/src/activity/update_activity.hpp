@@ -34,3 +34,27 @@ class UpdateActivity : public brls::Activity {
     bool running = false;
     bool mustQuit = false;  // dopo la sostituzione del .nro si puo' solo chiudere l'app
 };
+
+/**
+ * Debug interno (L+R + "Controlla aggiornamenti"): mostra l'IP della console e riceve un nuovo .nro
+ * inviato dal browser del PC sulla stessa rete, poi lo installa. Non documentato nel changelog.
+ */
+class DebugUploadActivity : public brls::Activity {
+  public:
+    ~DebugUploadActivity() override;
+    brls::View* createContentView() override;
+
+  private:
+    void tick();
+    AliveToken alive = makeAlive();
+    std::shared_ptr<std::function<void()>> ticker;
+    brls::Label* urlLabel = nullptr;
+    brls::Label* status = nullptr;
+    std::string pin, dest;
+    int port = 0;
+    bool installing = false;
+    bool done = false;
+};
+
+/** true se L e R sono tenuti premuti in questo momento. */
+bool debugComboHeld();
