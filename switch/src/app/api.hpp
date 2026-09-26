@@ -38,6 +38,8 @@ json history();
 /** Toglie un anime da "Continua a guardare" (i progressi degli episodi restano). */
 void removeFromHistory(const std::string& sourceId, const std::string& animeUrl);
 void saveProgress(const json& progress);
+/** Progresso salvato di un episodio ({position, duration, watched...}) o null. */
+json progress(const std::string& sourceId, const std::string& episodeUrl);
 
 /** Scarica un'immagine (copertina) con le intestazioni giuste per il sito. */
 std::string download(const std::string& url);

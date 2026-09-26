@@ -448,7 +448,19 @@ void saveProgress(const json& p) {
     writeJson(dataDir + "/progress.json", progressData);
 }
 
+json progress(const std::string& sid, const std::string& episodeUrl) {
+    std::lock_guard<std::mutex> lock(storeMutex);
+    auto k = key(sid, episodeUrl);
+    if (progressData.contains(k)) return progressData[k];
+    return nullptr;
+}
+
 std::string download(const std::string& url) {
+    if (url.rfind("sdmc:", 0) == 0 || url.rfind("/", 0) == 0) {  // copertina salvata con i download
+        std::ifstream in(url, std::ios::binary);
+        if (!in) throw http::Error("file non trovato");
+        return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    }
     http::Headers h;
     std::string host = http::hostOf(url);
     for (auto& s : src::all()) {

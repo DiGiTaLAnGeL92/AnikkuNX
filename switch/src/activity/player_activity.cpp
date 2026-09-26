@@ -6,12 +6,14 @@
 #include <map>
 
 #include "config.hpp"
+#include "util/platform.hpp"
 #include "util/sublang.hpp"
 
 #ifdef __SWITCH__
 #include <switch.h>
 #endif
 #include "app/api.hpp"
+#include "app/downloads.hpp"
 #include "net/http.hpp"
 
 using json = nlohmann::json;
@@ -37,12 +39,17 @@ PlayerOverlay::PlayerOverlay(MpvView* m) : mpv(m) {
 
 void PlayerOverlay::poke(double seconds) {
     lastInteraction = std::chrono::steady_clock::now();
+    hiddenByUser = false;
     visibleUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds((long)(seconds * 1000));
 }
 
-void PlayerOverlay::hide() { visibleUntil = std::chrono::steady_clock::now(); }
+void PlayerOverlay::hide() {
+    visibleUntil = std::chrono::steady_clock::now();
+    hiddenByUser = true;  // resta nascosto anche in pausa, finche' non si tocca qualcosa
+}
 
 bool PlayerOverlay::controlsVisible() const {
+    if (hiddenByUser) return scrubFrac >= 0;
     return std::chrono::steady_clock::now() < visibleUntil || mpv->paused || scrubFrac >= 0;
 }
 
@@ -389,8 +396,8 @@ PlayerActivity::~PlayerActivity() {
     Config::instance().markPlaying(false);
     *alive = false;
     brls::Application::setActiveEvent(false);
+    platform::setAwake(platform::AWAKE_PLAYER, false);
 #ifdef __SWITCH__
-    appletSetMediaPlaybackState(false);
     if (systemVolume) audctlExit();
     if (systemBrightness) {
         if (originalBrightness >= 0) lblSetCurrentBrightnessSetting(originalBrightness);
@@ -415,9 +422,7 @@ void PlayerActivity::updatePowerState() {
     bool playing = mpv->loaded && !mpv->paused && !mpv->ended;
     if (playing != mediaPlaying) {
         mediaPlaying = playing;
-#ifdef __SWITCH__
-        appletSetMediaPlaybackState(playing);
-#endif
+        platform::setAwake(platform::AWAKE_PLAYER, playing);
     }
     bool paused = !playing;
     if (paused && !wasPaused) pausedSince = now;
@@ -434,11 +439,12 @@ void PlayerActivity::updatePowerState() {
     if (idleStage == 0) {
         idleStage = 1;
         applyIdleDim(true);
-    } else if (idleStage == 1 && now - since >= std::chrono::seconds(60)) {
+    } else if (idleStage == 1 && now - since >= std::chrono::seconds(60) && !platform::downloadActive()) {
+        // (con un download in corso niente standby: interromperebbe la rete)
         idleStage = 2;
         saveProgress(true);
 #ifdef __SWITCH__
-        if (R_FAILED(appletRequestToSleep())) appletSetMediaPlaybackState(false);  // lascia fare al sistema
+        appletRequestToSleep();
 #endif
     }
 }
@@ -560,6 +566,12 @@ brls::View* PlayerActivity::createContentView() {
         return true;
     }, true);
     mpv->registerAction("", brls::BUTTON_B, [this](brls::View*) {
+        // B con i comandi visibili li nasconde; con i comandi gia' nascosti (o su un messaggio
+        // di caricamento/errore) esce dal video
+        if (overlay->message.empty() && overlay->controlsVisible()) {
+            overlay->hide();
+            return true;
+        }
         exitPlayer();
         return true;
     }, true);
@@ -858,6 +870,25 @@ void PlayerActivity::startEpisode() {
     overlay->message = tr("Cerco i video disponibili...");
     overlay->poke(6);
     current = json::object();
+
+    // episodio scaricato: si guarda dal file sulla scheda SD (anche senza rete)
+    if (req.forcedToken.empty()) {
+        json local = downloads::localFile(req.sourceId, ep.url);
+        if (!local.is_null()) {
+            mpv->onError = [this](const std::string& msg) {
+                overlay->message = tr("{}\nPremi B per tornare indietro", msg);
+            };
+            json info = {{"title", ep.name},
+                         {"url", local.value("file", "")},
+                         {"subtitles", local.value("subtitles", json::array())},
+                         {"audio", json::array()},
+                         {"timestamps", json::array()},
+                         {"mpvArgs", json::array()},
+                         {"label", tr("Scaricato")}};
+            playResolved(info);
+            return;
+        }
+    }
 
     struct Candidate {
         std::string token;

@@ -53,7 +53,10 @@ std::string getText(const std::string& url, const Headers& headers = {}, long ti
  * progress(scaricati, totale) viene chiamato dal thread di lavoro; se ritorna false il download si interrompe.
  */
 void downloadToFile(const std::string& url, const std::string& path, const Headers& headers = {},
-                    std::function<bool(long long, long long)> progress = nullptr);
+                    std::function<bool(long long, long long)> progress = nullptr,
+                    std::function<bool(const std::string&)> checkStart = nullptr);
+/* checkStart (opzionale) riceve i primi ~64 KB appena arrivano: se ritorna false il download si ferma
+   (serve a scartare subito pagine HTML o file che non sono video). */
 
 std::string urlEncode(const std::string& s);
 /** Risolve un URL relativo rispetto a una base (come "abs:href" di Jsoup). */

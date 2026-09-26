@@ -166,11 +166,26 @@ namespace {
 struct DownloadCtx {
     FILE* file = nullptr;
     std::function<bool(long long, long long)> progress;
+    std::function<bool(const std::string&)> checkStart;
+    std::string head;  // primi byte, per checkStart
+    bool checked = false;
+    bool rejected = false;
 };
 
 size_t fileWriteCb(char* ptr, size_t size, size_t nmemb, void* userdata) {
     auto* ctx = static_cast<DownloadCtx*>(userdata);
-    return fwrite(ptr, size, nmemb, ctx->file) * size;
+    size_t n = size * nmemb;
+    if (ctx->checkStart && !ctx->checked) {
+        ctx->head.append(ptr, std::min<size_t>(n, 65536 - std::min<size_t>(ctx->head.size(), 65536)));
+        if (ctx->head.size() >= 65536) {
+            ctx->checked = true;
+            if (!ctx->checkStart(ctx->head)) {
+                ctx->rejected = true;
+                return 0;  // interrompe il trasferimento
+            }
+        }
+    }
+    return fwrite(ptr, 1, n, ctx->file);
 }
 
 int progressCb(void* userdata, curl_off_t dltotal, curl_off_t dlnow, curl_off_t, curl_off_t) {
@@ -181,15 +196,20 @@ int progressCb(void* userdata, curl_off_t dltotal, curl_off_t dlnow, curl_off_t,
 }  // namespace
 
 void downloadToFile(const std::string& url, const std::string& path, const Headers& headers,
-                    std::function<bool(long long, long long)> progress) {
+                    std::function<bool(long long, long long)> progress,
+                    std::function<bool(const std::string&)> checkStart) {
     DownloadCtx ctx;
     ctx.progress = std::move(progress);
+    ctx.checkStart = std::move(checkStart);
     ctx.file = fopen(path.c_str(), "wb");
     if (!ctx.file) throw Error(tr("Impossibile scrivere {}", path));
 
     auto attempt = [&](bool insecure) {
         fseek(ctx.file, 0, SEEK_SET);
+        ctx.head.clear();
+        ctx.checked = ctx.rejected = false;
         CURL* curl = curl_easy_init();
+        if (share) curl_easy_setopt(curl, CURLOPT_SHARE, share);  // stessi cookie delle pagine della fonte
         struct curl_slist* list = nullptr;
         for (auto& h : headers) list = curl_slist_append(list, (h.first + ": " + h.second).c_str());
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -219,7 +239,13 @@ void downloadToFile(const std::string& url, const std::string& path, const Heade
     };
     CURLcode rc = attempt(isInsecureHost(hostOf(url)));
     if (rc == CURLE_PEER_FAILED_VERIFICATION || rc == CURLE_SSL_ISSUER_ERROR) rc = attempt(true);
+    // file piu' piccolo di 64 KB: il controllo si fa alla fine
+    if (rc == CURLE_OK && ctx.checkStart && !ctx.checked && !ctx.checkStart(ctx.head)) ctx.rejected = true;
     fclose(ctx.file);
+    if (ctx.rejected) {
+        std::remove(path.c_str());
+        throw Error(tr("Il link non contiene un video"));
+    }
     if (rc != CURLE_OK) {
         std::remove(path.c_str());
         if (rc == CURLE_ABORTED_BY_CALLBACK) throw Error(tr("Download annullato"));

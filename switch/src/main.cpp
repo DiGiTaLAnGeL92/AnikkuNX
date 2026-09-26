@@ -5,6 +5,7 @@
 
 #include "activity/main_activity.hpp"
 #include "app/api.hpp"
+#include "app/downloads.hpp"
 #include "config.hpp"
 #include "net/http.hpp"
 #include "util/i18n.hpp"
@@ -35,6 +36,7 @@ int main(int argc, char* argv[]) {
     Config::instance().save();  // crea la cartella dati se manca
     Config::instance().applyDomains();
     api::init(Config::instance().configDir());
+    downloads::init(Config::instance().configDir());  // coda dei download offline (thread dedicato)
 
     brls::Application::createWindow("AnikkuNX");
 #ifdef __SWITCH__

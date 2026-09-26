@@ -20,6 +20,8 @@ class AnimeActivity : public brls::Activity {
 
     void playEpisode(int index, const std::string& forcedToken = "", double startAt = -1);
     void chooseVideo(int index);
+    /** Mette l'episodio nella coda dei download (offline). */
+    void downloadEpisode(int index);
     void openSeason(int index);
     void toggleOrder();
 

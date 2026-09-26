@@ -3,6 +3,17 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.6.0
+
+- Nuova sezione "Scaricati" (sotto Libreria): gli episodi si possono scaricare e guardare offline
+- Nella lista episodi, accanto a "Qualità", c'è il pulsante di download (o tasto R): mostra se l'episodio è in coda, la percentuale, se è scaricato o se il download non è riuscito
+- Coda di download visibile e gestibile: un episodio alla volta, pausa/ripresa, riprova, "scarica per primo", rimuovi
+- Per ogni episodio vengono provati tutti i video della fonte: vale solo quello che parte davvero (i primi byte o il primo segmento devono essere video), altrimenti si passa al successivo
+- Scarica file diretti e stream HLS (anche cifrati AES-128 e con segmenti camuffati), con i sottotitoli e la copertina per vederli senza rete
+- Un episodio scaricato si apre dal file sulla scheda SD anche dalla pagina dell'anime; i progressi sono gli stessi della visione online
+- Durante un download la console non va in standby automatico
+- Player: B con i comandi visibili li nasconde; premuto di nuovo (a comandi nascosti) esce dal video
+
 ## 0.5.8
 
 - Corretto il crash all'avvio della 0.5.7 (i nuovi font venivano preparati prima che la finestra esistesse). Chi ha la 0.5.7 deve copiare a mano AnikkuNX.nro dalla pagina delle release

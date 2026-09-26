@@ -3,6 +3,7 @@
 
 #include "activity/anime_activity.hpp"
 #include "activity/browse_activity.hpp"
+#include "activity/downloads_activity.hpp"
 #include "activity/source_picker.hpp"
 #include "activity/update_activity.hpp"
 #include "util/network.hpp"
@@ -100,6 +101,7 @@ brls::View* MainActivity::createContentView() {
     auto* tabs = new brls::TabFrame();
     tabs->addTab(tr("Continua a guardare"), [] { return new HistoryTab(); });
     tabs->addTab(tr("Libreria"), [] { return new LibraryTab(); });
+    tabs->addTab(tr("Scaricati"), [] { return new DownloadsTab(); });
     tabs->addSeparator();
     tabs->addTab(tr("Sorgenti"), [] { return new SourcesTab(); });
     tabs->addTab(tr("Cerca ovunque"), [] { return new SearchTab(); });

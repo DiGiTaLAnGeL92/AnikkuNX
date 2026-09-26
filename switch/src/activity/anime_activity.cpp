@@ -2,10 +2,12 @@
 #include "util/i18n.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 #include "activity/player_activity.hpp"
 #include "app/api.hpp"
+#include "app/downloads.hpp"
 #include "view/anime_grid.hpp"
 
 using json = nlohmann::json;
@@ -19,12 +21,41 @@ static std::string fmtTime(double s) {
 
 // ----------------------------------------------------------------------------- cella episodio
 
-/** Riga episodio con pulsante "Qualita'" toccabile a destra (il tasto X fa lo stesso col controller). */
+/** Azione scelta toccando una riga episodio. */
+enum class EpisodeAction { PLAY, CHOOSE_VIDEO, DOWNLOAD };
+
+/** Icone Material (font di riserva dell'interfaccia). */
+static const char* ICON_DOWNLOAD = "\xEE\x8B\x84";  // U+E2C4 file_download
+static const char* ICON_DONE = "\xEE\xA1\xB6";      // U+E876 done
+static const char* ICON_QUEUED = "\xEE\xA2\xB5";    // U+E8B5 schedule
+static const char* ICON_ERROR = "\xEE\x80\x80";     // U+E000 error
+
+/**
+ * Riga episodio con due pulsanti toccabili a destra: download (R col controller) e "Qualita'" (X).
+ * Il pulsante di download mostra lo stato: da scaricare, in coda, percentuale, scaricato, errore.
+ */
 class EpisodeCell : public brls::DetailCell {
   public:
-    std::function<void(int row, bool chooseVideo)> onSelect;
+    std::function<void(int row, EpisodeAction action)> onSelect;
 
     EpisodeCell() {
+        dlPill = new brls::Box();
+        dlPill->setAlignItems(brls::AlignItems::CENTER);
+        dlPill->setJustifyContent(brls::JustifyContent::CENTER);
+        dlPill->setHeight(40);
+        dlPill->setMinWidth(56);
+        dlPill->setPaddingLeft(12);
+        dlPill->setPaddingRight(12);
+        dlPill->setMarginLeft(16);
+        dlPill->setCornerRadius(20);
+        dlPill->setBackgroundColor(nvgRGBA(255, 255, 255, 30));
+        dlPill->setShrink(0);
+        dlLabel = new brls::Label();
+        dlLabel->setText(ICON_DOWNLOAD);
+        dlLabel->setFontSize(20);
+        dlPill->addView(dlLabel);
+        this->addView(dlPill);
+
         pill = new brls::Box();
         pill->setAlignItems(brls::AlignItems::CENTER);
         pill->setJustifyContent(brls::JustifyContent::CENTER);
@@ -46,16 +77,73 @@ class EpisodeCell : public brls::DetailCell {
         this->addGestureRecognizer(new brls::TapGestureRecognizer([this](brls::TapGestureStatus st, brls::Sound* snd) {
             if (st.state != brls::GestureState::END) return;
             *snd = brls::SOUND_CLICK;
-            bool choose = pill->getVisibility() == brls::Visibility::VISIBLE &&
-                          st.position.x >= pill->getFrame().getMinX() - 20;
-            if (onSelect) onSelect(this->getIndexPath().row, choose);
+            EpisodeAction action = EpisodeAction::PLAY;
+            if (pill->getVisibility() == brls::Visibility::VISIBLE) {
+                if (st.position.x >= pill->getFrame().getMinX() - 8)
+                    action = EpisodeAction::CHOOSE_VIDEO;
+                else if (st.position.x >= dlPill->getFrame().getMinX() - 16)
+                    action = EpisodeAction::DOWNLOAD;
+            }
+            if (onSelect) onSelect(this->getIndexPath().row, action);
         }));
     }
 
-    void setPillVisible(bool v) { pill->setVisibility(v ? brls::Visibility::VISIBLE : brls::Visibility::GONE); }
+    void setPillVisible(bool v) {
+        pill->setVisibility(v ? brls::Visibility::VISIBLE : brls::Visibility::GONE);
+        dlPill->setVisibility(v ? brls::Visibility::VISIBLE : brls::Visibility::GONE);
+    }
+
+    /** Episodio mostrato dalla riga (per lo stato del download). */
+    void setEpisode(const std::string& sid, const std::string& epUrl) {
+        sourceId = sid;
+        episodeUrl = epUrl;
+        lastStatus = "?";
+        refreshDownload();
+    }
+
+    void draw(NVGcontext* vg, float x, float y, float width, float height, brls::Style style,
+              brls::FrameContext* ctx) override {
+        // lo stato del download cambia in background: controllato ogni mezzo secondo
+        auto now = std::chrono::steady_clock::now();
+        if (now - lastCheck > std::chrono::milliseconds(500)) refreshDownload();
+        brls::DetailCell::draw(vg, x, y, width, height, style, ctx);
+    }
 
   private:
+    void refreshDownload() {
+        lastCheck = std::chrono::steady_clock::now();
+        if (episodeUrl.empty()) return;
+        double progress = 0;
+        std::string st = downloads::status(sourceId, episodeUrl, &progress);
+        std::string text;
+        NVGcolor bg = nvgRGBA(255, 255, 255, 30);
+        if (st == "done") {
+            text = ICON_DONE;
+            bg = nvgRGBA(80, 170, 90, 90);
+        } else if (st == "downloading") {
+            text = std::to_string((int)(progress * 100)) + "%";
+            bg = nvgRGBA(214, 51, 108, 110);
+        } else if (st == "queued") {
+            text = ICON_QUEUED;
+        } else if (st == "failed") {
+            text = ICON_ERROR;
+            bg = nvgRGBA(200, 60, 60, 90);
+        } else {
+            text = ICON_DOWNLOAD;
+        }
+        if (text != lastText) {
+            lastText = text;
+            dlLabel->setText(text);
+            dlPill->setBackgroundColor(bg);
+        }
+        lastStatus = st;
+    }
+
     brls::Box* pill;
+    brls::Box* dlPill;
+    brls::Label* dlLabel;
+    std::string sourceId, episodeUrl, lastStatus, lastText;
+    std::chrono::steady_clock::time_point lastCheck{};
 };
 
 // ----------------------------------------------------------------------------- data source
@@ -66,6 +154,7 @@ class EpisodeDataSource : public brls::RecyclerDataSource {
 
     json items = json::array();
     bool seasons = false;
+    std::string sourceId;
 
     int numberOfSections(brls::RecyclerFrame*) override { return 1; }
     int numberOfRows(brls::RecyclerFrame*, int) override { return (int)items.size(); }
@@ -79,11 +168,13 @@ class EpisodeDataSource : public brls::RecyclerDataSource {
         const auto& it = items[index.row];
         cell->setPillVisible(!seasons);
         if (seasons) {
+            cell->setEpisode("", "");
             cell->setText(it.value("title", ""));
             cell->setDetailText("");
             return cell;
         }
         cell->setText(it.value("name", tr("Episodio")));
+        cell->setEpisode(sourceId, it.value("url", ""));
         std::string detail;
         if (it.value("watched", false)) {
             detail = tr("Visto");
@@ -224,22 +315,29 @@ brls::View* AnimeActivity::createContentView() {
     recycler->registerCell("Header", [] { return brls::RecyclerHeader::create(); });
     recycler->registerCell("Cell", [this] {
         auto* cell = new EpisodeCell();
-        cell->registerAction(tr("Scegli video"), brls::BUTTON_X, [this, cell](brls::View*) {
+        cell->registerAction(tr("Video"), brls::BUTTON_X, [this, cell](brls::View*) {
             if (dataSource && !dataSource->seasons) chooseVideo(cell->getIndexPath().row);
             return true;
         });
-        cell->onSelect = [this](int row, bool choose) {
+        cell->registerAction(tr("Scarica"), brls::BUTTON_RB, [this, cell](brls::View*) {
+            if (dataSource && !dataSource->seasons) downloadEpisode(cell->getIndexPath().row);
+            return true;
+        });
+        cell->onSelect = [this](int row, EpisodeAction action) {
             if (!dataSource) return;
             if (dataSource->seasons)
                 openSeason(row);
-            else if (choose)
+            else if (action == EpisodeAction::CHOOSE_VIDEO)
                 chooseVideo(row);
+            else if (action == EpisodeAction::DOWNLOAD)
+                downloadEpisode(row);
             else
                 playEpisode(row);
         };
         return (brls::RecyclerCell*)cell;
     });
     dataSource = new EpisodeDataSource(this);
+    dataSource->sourceId = sourceId;
     recycler->setDataSource(dataSource);
     recycler->setVisibility(brls::Visibility::GONE);
     right->addView(recycler);
@@ -247,14 +345,21 @@ brls::View* AnimeActivity::createContentView() {
 
     root->getAppletFrameItem()->title = title;
     auto* frame = new brls::AppletFrame(root);
-    frame->registerAction(tr("Aggiorna"), brls::BUTTON_Y, [this](brls::View*) {
-        load();
-        return true;
-    });
-    frame->registerAction(tr("Inverti ordine"), brls::BUTTON_RSB, [this](brls::View*) {
-        toggleOrder();
-        return true;
-    });
+    // la barra in basso ha poco spazio: Aggiorna (Y) e Inverti ordine (R3) funzionano ma non sono elencati
+    frame->registerAction(
+        tr("Aggiorna"), brls::BUTTON_Y,
+        [this](brls::View*) {
+            load();
+            return true;
+        },
+        true);
+    frame->registerAction(
+        tr("Inverti ordine"), brls::BUTTON_RSB,
+        [this](brls::View*) {
+            toggleOrder();
+            return true;
+        },
+        true);
     return frame;
 }
 
@@ -463,6 +568,32 @@ void AnimeActivity::chooseVideo(int index) {
             });
             brls::Application::pushActivity(new brls::Activity(dd));
         });
+}
+
+void AnimeActivity::downloadEpisode(int index) {
+    if (!dataSource || index < 0 || index >= (int)dataSource->items.size()) return;
+    const auto& ep = dataSource->items[index];
+    std::string epUrl = ep.value("url", "");
+    std::string st = downloads::status(sourceId, epUrl);
+    if (st == "done") {
+        brls::Application::notify(tr("Gia' scaricato: lo trovi in \"Scaricati\""));
+        return;
+    }
+    if (st == "queued" || st == "downloading") {
+        brls::Application::notify(tr("Gia' in coda di download"));
+        return;
+    }
+    downloads::EpisodeInfo info;
+    info.sourceId = sourceId;
+    info.animeUrl = url;
+    info.animeTitle = title;
+    info.thumbnail = thumbnail;
+    info.episodeUrl = epUrl;
+    info.episodeName = ep.value("name", "");
+    info.number = ep.value("number", -1.0);
+    downloads::enqueue(info);
+    brls::Application::notify(downloads::paused() ? tr("Aggiunto alla coda (i download sono in pausa)")
+                                                  : tr("Aggiunto alla coda: {}", info.episodeName));
 }
 
 void AnimeActivity::openSeason(int index) {

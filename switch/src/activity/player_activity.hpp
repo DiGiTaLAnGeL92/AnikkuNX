@@ -70,6 +70,7 @@ class PlayerOverlay : public brls::View {
     void drawButton(NVGcontext* vg, HitRect& r, float cx, float cy, float radius, unsigned iconCode, bool dark);
     MpvView* mpv;
     std::chrono::steady_clock::time_point visibleUntil;
+    bool hiddenByUser = false;
     std::string flashText;
     bool flashLeft = false;
     std::chrono::steady_clock::time_point flashUntil;

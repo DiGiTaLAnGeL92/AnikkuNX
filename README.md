@@ -19,6 +19,8 @@ No PC or server needed: the console talks to the sites directly. The Aniyomi sou
   automatic next episode.
 - **Touch controls**: on-screen buttons, tap or drag the seek bar, double-tap left/right to seek, and swipe up/down
   on the left half (system volume) or the right half (screen brightness).
+- **Offline downloads**: a download button on every episode, a visible queue (one episode at a time, pause, retry)
+  and a *Downloads* section to watch without internet. Each source video is checked before it is saved.
 - **Library and history**, saved on the SD card. At startup the app checks your library for **new episodes**
   ("+N" badge, notification).
 - **In-app updates** from the GitHub releases, with the changelog from [CHANGELOG.md](CHANGELOG.md).
