@@ -38,7 +38,7 @@ No PC or server needed: the console talks to the sites directly. The Aniyomi sou
 | Portuguese | Animes Digital |
 | French | Anime-Sama, Vostfree |
 | German | AniWorld, AnimeToast |
-| Arabic | Asia2TV, TukTukCinema |
+| Arabic | Asia2TV, TukTukCinema, RistoAnime |
 | Russian | Animevost, YummyAnime |
 | Indonesian | Samehadaku |
 | Chinese | Xfani, Iyf, Nivod, Xiaoxintv |
@@ -112,7 +112,8 @@ AnikkuNX is released under the **GNU GPL v3** (see [LICENSE](LICENSE)).
 - [borealis](https://github.com/xfangfang/borealis) (Apache-2.0), [gumbo-parser](https://github.com/google/gumbo-parser) (Apache-2.0), [nlohmann/json](https://github.com/nlohmann/json) (MIT).
 - [mpv](https://mpv.io) and [FFmpeg](https://ffmpeg.org) (LGPL/GPL), using the Switch packages from [wiliwili](https://github.com/xfangfang/wiliwili).
 - [libnx](https://github.com/switchbrew/libnx) / devkitPro, and [Material Icons](https://fonts.google.com/icons) (Apache-2.0).
-- [GNU FreeFont](https://www.gnu.org/software/freefont/) FreeSans (GPL-3.0 with font exception), used for Hindi, Arabic, Thai… characters.
+- [GNU FreeFont](https://www.gnu.org/software/freefont/) FreeSans (GPL-3.0 with font exception), used for Hindi and other characters missing from the console fonts.
+- [Noto Naskh Arabic](https://fonts.google.com/noto/specimen/Noto+Naskh+Arabic) (SIL OFL 1.1), used for Arabic text in the UI and subtitles.
 
 ---
 
