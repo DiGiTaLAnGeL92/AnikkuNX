@@ -3,6 +3,11 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.6.2
+
+- Nuova fonte anime araba: RistoAnime
+- Aggiunto un font dedicato per l'arabo: risolve i quadratini vuoti al posto del testo arabo nell'interfaccia e nei sottotitoli
+
 ## 0.6.1
 
 - Bugfix minori

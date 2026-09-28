@@ -1,6 +1,6 @@
 // Porting in C++ delle estensioni Aniyomi arabe, turche, russe e polacche (src/ar, src/tr, src/ru, src/pl).
 // Arabo:   Anime4Up e WIT ANIME (stesso tema "anime-list"), Animerco, AnimeLek, Okanime, Anime Blkom, Animeiat,
-//          ArabAnime, Arab Seed, Asia2TV, Egy Dead, Tuktuk Cinema.
+//          ArabAnime, Arab Seed, Asia2TV, Egy Dead, Tuktuk Cinema, RistoAnime.
 // Turco:   Türk Anime TV, Anizm, Animeler, TR Anime Izle, HentaiZM (18+), HDFilmCehennemi (18+).
 // Russo:   Animevost (+ mirror), YummyAnime, Animelib (18+).
 // Polacco: Docchi (18+), OgladajAnime (18+).
@@ -2625,6 +2625,81 @@ class Tuktukcinema : public Base {
     }
 };
 
+// ---- RistoAnime (ar.ristoanime): tema WordPress "TopAnime", server elencati in chiaro nell'HTML di /watch
+class RistoAnime : public Base {
+  public:
+    RistoAnime() : Base("ar.ristoanime", "RistoAnime", "https://ristoanime.me", "ar") {}
+
+    Page popular(int page) override { return list("/views/page/" + std::to_string(page) + "/"); }
+    Page latest(int page) override { return list("/page/" + std::to_string(page) + "/"); }
+    Page search(const std::string& q, int page) override {
+        return list("/page/" + std::to_string(page) + "/?s=" + http::urlEncode(q));
+    }
+
+    Details details(const std::string& url) override {
+        DocPtr doc = page(url);
+        Details d;
+        d.title = trim(substringBefore(html::textOf(doc->select("h1.PostTitle")), " الحلقة "));
+        html::Node img = doc->selectFirst("div.Poster div.InnerPoster img");
+        if (img) d.thumbnail = doc->absUrl(img, "src");
+        d.description = trim(html::textOf(doc->select("div.StoryArea p")));
+        auto tax = doc->select("div.TaxContent li");
+        d.genre = joinText(firstContaining(tax, "النوع").select("a"));
+        std::string status = trim(html::textOf(firstContaining(tax, "الحالة").select("a")));
+        d.status = status.empty() ? "" : (contains(status, "now") ? "In corso" : "Completato");
+        for (auto& a : doc->select("div.EpisodesList a")) {
+            Episode e;
+            e.url = rel(*doc, a);
+            std::string num = trim(html::textOf(a.select("em")));
+            e.name = "الحلقة " + num;
+            e.number = toNumber(num);
+            if (!e.url.empty()) d.episodes.push_back(e);
+        }
+        newestFirst(d.episodes);
+        return d;
+    }
+
+    std::vector<Video> videos(const std::string& url) override {
+        DocPtr doc = page(url + "/watch");
+        std::vector<Video> out;
+        for (auto& li : doc->select("div#WatchList ul#watch li")) {
+            std::string u = li.attr("data-watch");
+            if (u.empty()) continue;
+            tryAppend(out, [&]() -> std::vector<Video> {
+                if (contains(u, "vidmoly")) return vidMoly(u, "");
+                if (contains(u, "video.sibnet.ru")) return sibnet(u);
+                if (contains(u, "mp4upload")) return mp4upload(u, "");
+                if (contains(u, "uqload")) return uqload(u);
+                return {};
+            });
+        }
+        finish(out, "1080");
+        return out;
+    }
+
+  private:
+    Page list(const std::string& path) {
+        DocPtr doc = page(path);
+        Page p = listOf(*doc, "div.MovieItem", [&](const html::Node& el) {
+            html::Node a = el.selectFirst("a");
+            std::string title = trim(substringBefore(html::textOf(el.select("div.title h4")), " الحلقة "));
+            return Anime{rel(*doc, a), title, posterUrl(el.selectFirst("div.poster"))};
+        });
+        p.hasNextPage = firstContaining(doc->select("div.pagination a"), "التالى").valid();
+        return p;
+    }
+
+    static std::string posterUrl(const html::Node& n) {
+        if (!n) return "";
+        std::string style = n.attr("data-style");
+        if (style.empty()) style = n.attr("style");
+        std::string u = trim(substringBefore(substringAfter(style, "url("), ")"));
+        if (!u.empty() && (u.front() == '\'' || u.front() == '"')) u = u.substr(1);
+        if (!u.empty() && (u.back() == '\'' || u.back() == '"')) u.pop_back();
+        return u;
+    }
+};
+
 // =============================================================================================== TURCO
 
 // ---- Türk Anime TV (tr.turkanime)
@@ -4190,6 +4265,7 @@ std::vector<std::shared_ptr<Source>> makeArTrRuPlSources() {
     out.push_back(std::make_shared<Asia2TV>());
     out.push_back(std::make_shared<EgyDead>());
     out.push_back(std::make_shared<Tuktukcinema>());
+    out.push_back(std::make_shared<RistoAnime>());
     // turco
     out.push_back(std::make_shared<TurkAnime>());
     out.push_back(std::make_shared<Anizm>());

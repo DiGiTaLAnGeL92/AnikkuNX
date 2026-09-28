@@ -17,7 +17,7 @@ static const std::set<std::string> VERIFIED = {
     "es.mundodonghua", "es.veranime",    "es.veranimes",   "es.beatzanime",  "es.pelisplusph",    "es.pelisplusto",
     "es.cineplus123",  "es.verpelistop", "pt.animesdigital", "fr.animesama", "fr.vostfree",       "de.aniworld",
     "de.animetoast",   "ar.asia2tv",     "ar.tuktukcinema", "ru.animevost",  "ru.animevost.mirror", "ru.yummyanime",
-    "id.samehadaku",   "zh.xfani",       "zh.iyf",         "zh.nivod",       "zh.xiaoxintv",
+    "id.samehadaku",   "zh.xfani",       "zh.iyf",         "zh.nivod",       "zh.xiaoxintv",   "ar.ristoanime",
 };
 
 static bool visible(const Source& s) {

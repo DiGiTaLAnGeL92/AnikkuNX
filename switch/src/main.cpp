@@ -52,10 +52,14 @@ int main(int argc, char* argv[]) {
             int f = brls::Application::getFont(name);
             if (regular >= 0 && f >= 0) nvgAddFallbackFontId(vg, regular, f);
         }
-        // hindi (devanagari), arabo, thai, ebraico...: i font della console non li hanno.
+        // hindi (devanagari), ebraico...: i font della console non li hanno.
         // GNU FreeSans (GPL con eccezione per i font) li copre; senza shaping le legature indiane sono semplificate.
         if (regular >= 0 && brls::Application::loadFontFromFile("freesans", "romfs:/font/FreeSans.ttf"))
             nvgAddFallbackFontId(vg, regular, brls::Application::getFont("freesans"));
+        // arabo: FreeSans copre pochissimo l'arabo (quasi solo punteggiatura), da qui i quadratini vuoti.
+        // Noto Naskh Arabic UI (SIL OFL) ha le lettere; senza shaping restano nella forma isolata (non collegate).
+        if (regular >= 0 && brls::Application::loadFontFromFile("notoarabic", "romfs:/font/NotoNaskhArabic.ttf"))
+            nvgAddFallbackFontId(vg, regular, brls::Application::getFont("notoarabic"));
     }
 #endif
     brls::Application::getPlatform()->setThemeVariant(brls::ThemeVariant::DARK);
