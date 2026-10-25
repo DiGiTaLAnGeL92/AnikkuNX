@@ -49,6 +49,7 @@ void Config::load() {
         seekSeconds = j.value("seekSeconds", 10);
         hlsProxy = j.value("hlsProxy3", true);
         subtitleLang = j.value("subtitleLang", "auto");
+        videoQualityPref = j.value("videoQualityPref", "high");
     } catch (const std::exception& e) {
         brls::Logger::error("config.json non valido: {}", e.what());
     }
@@ -69,6 +70,7 @@ void Config::save() {
         {"seekSeconds", seekSeconds},
         {"hlsProxy3", hlsProxy},
         {"subtitleLang", subtitleLang},
+        {"videoQualityPref", videoQualityPref},
     };
     std::ofstream out(configDir() + "/config.json");
     out << j.dump(2);

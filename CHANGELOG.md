@@ -3,6 +3,11 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.6.3
+
+- Corretto il crash quando si cambia l'indirizzo di una fonte nelle Impostazioni (es. AnimeUnity da .so a .co)
+- Nuova opzione in Impostazioni > Riproduzione: "Priorità qualità video". Con "Alta" l'avvio automatico prova prima i video di qualità superiore, con "Bassa" prima quelli di qualità inferiore
+
 ## 0.6.2
 
 - Nuova fonte anime araba: RistoAnime

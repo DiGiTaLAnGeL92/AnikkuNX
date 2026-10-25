@@ -32,6 +32,7 @@ class Config {
     std::string skippedVersion;     // versione che l'utente ha scelto di saltare
     bool autoSkipOpening = false;
     std::string subtitleLang = "auto";  // lingua preferita dei sottotitoli ("auto" = console, "off" = spenti)
+    std::string videoQualityPref = "high";  // "high" = prova prima le qualita' piu' alte, "low" = le piu' basse
     bool hlsProxy = true;       // proxy locale per i segmenti HLS camuffati da immagine
     /** Messaggio da mostrare all'avvio se il player si era chiuso in modo anomalo ("" se nessuno). */
     std::string crashNotice;

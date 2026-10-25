@@ -442,7 +442,10 @@ SettingsTab::SettingsTab() {
         std::string current = cfg.domains.count(id) ? cfg.domains[id] : "";
         cell->init(
             s->name(), current.empty() ? s->defaultBaseUrl() : current,
-            [id, cell](std::string text) {
+            [id, cell, busy = std::make_shared<bool>(false)](std::string text) {
+                // cell->setValue() qui sotto rilancia questo stesso callback: senza il blocco la ricorsione e' infinita (crash)
+                if (*busy) return;
+                *busy = true;
                 auto s = src::byId(id);
                 if (text.empty() || (s && text == s->defaultBaseUrl()))
                     Config::instance().domains.erase(id);
@@ -451,6 +454,7 @@ SettingsTab::SettingsTab() {
                 Config::instance().save();
                 Config::instance().applyDomains();
                 if (s) cell->setValue(s->baseUrl());
+                *busy = false;
             },
             "", tr("Es. https://www.animeworld.ac (lascia vuoto per il predefinito)"), 80);
         box->addView(cell);
@@ -485,6 +489,19 @@ SettingsTab::SettingsTab() {
             Config::instance().save();
         });
         box->addView(subLang);
+    }
+
+    {
+        // priorita' di qualita' video: quale viene provato per primo quando l'episodio parte da solo
+        std::vector<std::string> labels = {tr("Alta (prova prima i video di qualita' superiore)"),
+                                            tr("Bassa (prova prima i video di qualita' inferiore)")};
+        int selected = cfg.videoQualityPref == "low" ? 1 : 0;
+        auto* quality = new brls::SelectorCell();
+        quality->init(tr("Priorita' qualita' video"), labels, selected, [](int i) {
+            Config::instance().videoQualityPref = i == 1 ? "low" : "high";
+            Config::instance().save();
+        });
+        box->addView(quality);
     }
 
     auto* proxy = new brls::BooleanCell();

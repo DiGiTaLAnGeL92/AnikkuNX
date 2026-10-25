@@ -16,7 +16,7 @@ No PC or server needed: the console talks to the sites directly. The Aniyomi sou
 - **Sources**: Italian (AnimeWorld, AnimeUnity, AnimeSaturn), English and multi-language sites. On first launch you pick
   which ones to enable, so the app stays light. You can change the choice later in *Settings → Choose sources*.
 - **Player**: mpv with hardware decoding, HLS/MP4/DASH, external subtitles and audio tracks, resume from where you left off,
-  automatic next episode.
+  automatic next episode. A setting chooses whether higher or lower video qualities are tried first.
 - **Touch controls**: on-screen buttons, tap or drag the seek bar, double-tap left/right to seek, and swipe up/down
   on the left half (system volume) or the right half (screen brightness).
 - **Offline downloads**: a download button on every episode, a visible queue (one episode at a time, pause, retry)

@@ -893,6 +893,7 @@ void PlayerActivity::startEpisode() {
     struct Candidate {
         std::string token;
         std::string label;
+        int quality = 0;
     };
     auto sid = req.sourceId;
     auto epUrl = ep.url;
@@ -918,7 +919,7 @@ void PlayerActivity::startEpisode() {
                     std::string hname = h.value("name", "");
                     if (h["videos"].is_array()) {
                         for (auto& v : h["videos"]) {
-                            Candidate c{v.value("token", ""), hname + " - " + v.value("title", "")};
+                            Candidate c{v.value("token", ""), hname + " - " + v.value("title", ""), v.value("resolution", 0)};
                             if (v.value("preferred", false))
                                 cands->push_back(c);
                             else
@@ -928,6 +929,11 @@ void PlayerActivity::startEpisode() {
                         lazy->push_back({h.value("index", 0), hname});
                     }
                 }
+                // priorita' qualita' scelta dall'utente (stable_sort: a parita' resta l'ordine della fonte)
+                bool preferLow = Config::instance().videoQualityPref == "low";
+                std::stable_sort(normal.begin(), normal.end(), [preferLow](const Candidate& a, const Candidate& b) {
+                    return preferLow ? a.quality < b.quality : a.quality > b.quality;
+                });
                 cands->insert(cands->end(), normal.begin(), normal.end());
             }
 
