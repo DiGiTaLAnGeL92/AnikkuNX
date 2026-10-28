@@ -1,5 +1,6 @@
 #include "activity/player_activity.hpp"
 #include "util/i18n.hpp"
+#include "util/arabic.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -242,10 +243,10 @@ void PlayerOverlay::draw(NVGcontext* vg, float x, float y, float width, float he
     nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
     nvgFillColor(vg, nvgRGB(255, 255, 255));
     nvgFontSize(vg, 30);
-    nvgText(vg, x + 100, y + 28, title.c_str(), nullptr);
+    nvgText(vg, x + 100, y + 28, shapeArabic(title).c_str(), nullptr);
     nvgFontSize(vg, 22);
     nvgFillColor(vg, nvgRGB(200, 200, 205));
-    nvgText(vg, x + 100, y + 68, subtitle.c_str(), nullptr);
+    nvgText(vg, x + 100, y + 68, shapeArabic(subtitle).c_str(), nullptr);
 
     // comandi centrali: indietro, pausa/play, avanti (nascosti durante i messaggi)
     if (center.empty()) {

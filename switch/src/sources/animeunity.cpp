@@ -22,7 +22,7 @@ class AnimeUnity : public Source {
   public:
     std::string id() const override { return "7762808921754601430"; }
     std::string name() const override { return "AnimeUnity"; }
-    std::string defaultBaseUrl() const override { return "https://www.animeunity.so"; }
+    std::string defaultBaseUrl() const override { return "https://www.animeunity.co"; }
 
     Page popular(int page) override {
         std::string body = http::getText(baseUrl() + "/top-anime?popular=true&page=" + std::to_string(page));

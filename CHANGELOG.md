@@ -3,6 +3,12 @@
 Ogni versione ha una sezione `## x.y.z`: il testo viene usato così com'è per la release su GitHub,
 per il messaggio del commit e per la finestra di aggiornamento dentro l'app.
 
+## 0.6.4
+
+- Testi arabi: le lettere ora sono collegate tra loro e si leggono da destra a sinistra (titoli, descrizioni, nomi degli episodi e titolo nel player)
+- Sottotitoli arabi nel video: ora si vedono (prima comparivano come quadratini vuoti), con le lettere collegate
+- AnimeUnity: il dominio predefinito ora è animeunity.co (il vecchio .so non funziona più)
+
 ## 0.6.3
 
 - Corretto il crash quando si cambia l'indirizzo di una fonte nelle Impostazioni (es. AnimeUnity da .so a .co)

@@ -68,9 +68,10 @@ static std::string prepareSubtitleFonts() {
         writeFile(dir + "/fonts/" + it.name, font.address, font.size);
     }
     // subfont.ttf e' il font di ripiego di libass per i caratteri che il font della console non ha
-    // (hindi, arabo, thai, ebraico...): GNU FreeSans, incluso nell'app. Il latino resta col font della console.
+    // (hindi, arabo, thai, ebraico...): GNU FreeSans + Noto Naskh Arabic uniti in un file, inclusi nell'app
+    // (libass collega e ordina da solo le lettere arabe con HarfBuzz/FriBidi). Il latino resta col font della console.
     {
-        FILE* in = fopen("romfs:/font/FreeSans.ttf", "rb");
+        FILE* in = fopen("romfs:/font/SubtitleFallback.ttf", "rb");
         if (in) {
             std::string data;
             char buf[65536];

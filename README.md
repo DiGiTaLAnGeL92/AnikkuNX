@@ -113,7 +113,7 @@ AnikkuNX is released under the **GNU GPL v3** (see [LICENSE](LICENSE)).
 - [mpv](https://mpv.io) and [FFmpeg](https://ffmpeg.org) (LGPL/GPL), using the Switch packages from [wiliwili](https://github.com/xfangfang/wiliwili).
 - [libnx](https://github.com/switchbrew/libnx) / devkitPro, and [Material Icons](https://fonts.google.com/icons) (Apache-2.0).
 - [GNU FreeFont](https://www.gnu.org/software/freefont/) FreeSans (GPL-3.0 with font exception), used for Hindi and other characters missing from the console fonts.
-- [Noto Naskh Arabic](https://fonts.google.com/noto/specimen/Noto+Naskh+Arabic) (SIL OFL 1.1), used for Arabic text in the UI and subtitles.
+- [Noto Naskh Arabic](https://fonts.google.com/noto/specimen/Noto+Naskh+Arabic) (SIL OFL 1.1), used for Arabic text in the UI and subtitles (UI letters are joined and ordered right-to-left by `switch/src/util/arabic.cpp`).
 
 ---
 

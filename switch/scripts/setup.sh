@@ -14,6 +14,14 @@ fi
 sed -i 's/static int regular = Application::getFont(FONT_CHINESE_SIMPLIFIED);/static int regular = Application::getFont(FONT_REGULAR);/' \
   library/borealis/library/lib/core/application.cpp
 grep -q "getFont(FONT_REGULAR);" library/borealis/library/lib/core/application.cpp || { echo "patch del font non applicata"; exit 1; }
+# Arabo: NanoVG non collega le lettere ne' scrive da destra a sinistra. Label::setText passa il testo a
+# brls_shapeArabic() (src/util/arabic.cpp, nell'app), che sceglie le forme giuste e riordina.
+LABEL=library/borealis/library/lib/views/label.cpp
+if ! grep -q brls_shapeArabic "$LABEL"; then
+  sed -i '0,/^namespace brls/s//std::string brls_shapeArabic(const std::string\& text);\n\nnamespace brls/' "$LABEL"
+  sed -i '/^void Label::setText(const std::string& text)$/,/^{$/{s/(const std::string& text)$/(const std::string\& brlsRawText)/;s/^{$/{\n    std::string text = brls_shapeArabic(brlsRawText);/}' "$LABEL"
+fi
+grep -q "brls_shapeArabic(brlsRawText)" "$LABEL" || { echo "patch dell'arabo non applicata"; exit 1; }
 # glfw serve solo per la build desktop di prova
 git -C library/borealis submodule update --init --depth 1 library/lib/extern/glfw || true
 echo "borealis pronto"
